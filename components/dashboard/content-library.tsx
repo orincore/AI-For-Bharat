@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
 
-type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter';
+type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter' | 'YouTube';
 
 interface ContentItem {
   id: string;
@@ -22,6 +22,7 @@ const platformColors: Record<PlatformType, string> = {
   Instagram: 'bg-primary/10 text-primary border-primary/30',
   LinkedIn: 'bg-primary/10 text-primary border-primary/30',
   Twitter: 'bg-primary/10 text-primary border-primary/30',
+  YouTube: 'bg-red-500/10 text-red-500 border-red-500/30',
 };
 
 // Sample data for demonstration
@@ -79,6 +80,15 @@ const sampleContent: ContentItem[] = [
     likes: 892,
     comments: 56,
     createdAt: 'Feb 28, 2025',
+  },
+  {
+    id: '7',
+    caption: 'NEW VIDEO: Complete React Tutorial for Beginners! 🚀 Learn everything you need to know to get started with React development.',
+    thumbnail: 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?w=400&h=400&fit=crop',
+    platform: 'YouTube',
+    likes: 8450,
+    comments: 523,
+    createdAt: 'Feb 27, 2025',
   },
 ];
 

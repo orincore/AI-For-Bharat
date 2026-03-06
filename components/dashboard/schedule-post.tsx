@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Clock, Send, Trash2, Edit2, Instagram, Linkedin, Twitter } from 'lucide-react';
+import { Calendar, Clock, Send, Trash2, Edit2, Instagram, Linkedin, Twitter, Youtube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 
-type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter';
+type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter' | 'YouTube';
 
 interface ScheduledPost {
   id: string;
@@ -16,6 +16,9 @@ interface ScheduledPost {
   scheduledDate: string;
   scheduledTime: string;
   createdAt: string;
+  videoTitle?: string;
+  videoDescription?: string;
+  videoTags?: string;
 }
 
 const platformConfig: Record<PlatformType, { icon: React.ReactNode; color: string; bgColor: string }> = {
@@ -33,6 +36,11 @@ const platformConfig: Record<PlatformType, { icon: React.ReactNode; color: strin
     icon: <Twitter className="w-5 h-5" />,
     color: 'text-sky-400',
     bgColor: 'bg-primary/10 border-primary/30',
+  },
+  YouTube: {
+    icon: <Youtube className="w-5 h-5" />,
+    color: 'text-red-500',
+    bgColor: 'bg-red-500/10 border-red-500/30',
   },
 };
 
@@ -62,6 +70,17 @@ const sampleScheduledPosts: ScheduledPost[] = [
     scheduledTime: '09:15',
     createdAt: 'Mar 5, 2025',
   },
+  {
+    id: '4',
+    platform: 'YouTube',
+    caption: 'NEW TUTORIAL: Building a Full-Stack App with React & Node.js - Complete Guide for Beginners! 🚀',
+    scheduledDate: '2025-03-20',
+    scheduledTime: '16:00',
+    createdAt: 'Mar 6, 2025',
+    videoTitle: 'Building a Full-Stack App with React & Node.js',
+    videoDescription: 'Learn how to build a full-stack app with React and Node.js in this comprehensive tutorial.',
+    videoTags: 'React, Node.js, Full-Stack, Tutorial',
+  },
 ];
 
 export function SchedulePost() {
@@ -69,6 +88,9 @@ export function SchedulePost() {
   const [caption, setCaption] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [videoTitle, setVideoTitle] = useState('');
+  const [videoDescription, setVideoDescription] = useState('');
+  const [videoTags, setVideoTags] = useState('');
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>(sampleScheduledPosts);
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -260,7 +282,7 @@ export function SchedulePost() {
         {/* Caption Textarea */}
         <div className="mb-6">
           <label className="block text-sm font-medium text-foreground mb-2">
-            Caption Preview
+            {platform === 'YouTube' ? 'Short Caption (for Shorts or Community posts)' : 'Caption Preview'}
           </label>
           <textarea
             value={caption}
@@ -274,6 +296,48 @@ export function SchedulePost() {
             {caption.length}/2200 characters
           </div>
         </div>
+
+        {/* YouTube-specific fields */}
+        {platform === 'YouTube' && (
+          <div className="mb-6 space-y-4 p-4 border border-border/40 rounded-lg bg-secondary/30">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Video Title <span className="text-destructive">*</span>
+              </label>
+              <input
+                type="text"
+                value={videoTitle}
+                onChange={(e) => setVideoTitle(e.target.value)}
+                placeholder="Enter your video title"
+                className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Video Description
+              </label>
+              <textarea
+                value={videoDescription}
+                onChange={(e) => setVideoDescription(e.target.value)}
+                placeholder="Describe your video content..."
+                rows={4}
+                className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Tags / Keywords
+              </label>
+              <input
+                type="text"
+                value={videoTags}
+                onChange={(e) => setVideoTags(e.target.value)}
+                placeholder="Enter tags separated by commas"
+                className="w-full px-4 py-2 rounded-lg bg-background border border-border text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+          </div>
+        )}
 
             {/* Action Buttons */}
             <div className="flex gap-3">

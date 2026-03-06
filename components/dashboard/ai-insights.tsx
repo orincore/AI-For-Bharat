@@ -136,6 +136,34 @@ export function AIInsights() {
             />
           </div>
 
+          {/* YouTube-Specific Insights */}
+          <div className="mt-6">
+            <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+              <div className="p-1.5 rounded bg-red-500/20">
+                <div className="w-4 h-4 bg-red-500 rounded-sm"></div>
+              </div>
+              YouTube Platform Insights
+            </h3>
+            <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                <span className="text-sm text-muted-foreground">Best time to post YouTube videos</span>
+                <span className="text-sm font-semibold text-red-400">3:00 PM - 5:00 PM</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                <span className="text-sm text-muted-foreground">Recommended video length</span>
+                <span className="text-sm font-semibold text-red-400">8-12 minutes</span>
+              </div>
+              <div className="flex items-center justify-between p-3 rounded-lg bg-red-500/5 border border-red-500/20">
+                <span className="text-sm text-muted-foreground">Trending YouTube tags</span>
+                <div className="flex gap-1">
+                  <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-1 rounded">#Tutorial</span>
+                  <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-1 rounded">#HowTo</span>
+                  <span className="text-xs font-medium text-red-400 bg-red-500/10 px-2 py-1 rounded">#Review</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* AI Analysis Summary */}
           <div className="mt-4 p-4 rounded-lg bg-muted/30 border border-border">
             <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">

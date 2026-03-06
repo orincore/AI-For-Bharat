@@ -16,6 +16,7 @@ import {
   Instagram,
   Linkedin,
   Twitter,
+  Youtube,
   Brain,
   Zap,
   BarChart3,
@@ -109,6 +110,7 @@ const platformPerformance = [
   { platform: "Instagram", icon: Instagram, followers: "24.5K", growth: "+3.2%", posts: 156, color: "text-neon-instagram" },
   { platform: "LinkedIn", icon: Linkedin, followers: "12.8K", growth: "+5.1%", posts: 89, color: "text-neon-linkedin" },
   { platform: "X", icon: Twitter, followers: "18.2K", growth: "+1.8%", posts: 234, color: "text-neon-x" },
+  { platform: "YouTube", icon: Youtube, followers: "32.4K", growth: "+6.3%", posts: 124, color: "text-red-500" },
 ]
 
 const aiInsights = [

@@ -10,6 +10,7 @@ import {
   Instagram,
   Linkedin,
   Twitter,
+  Youtube,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -43,9 +44,10 @@ const weeklyData = [
 ]
 
 const platformDistribution = [
-  { name: "Instagram", value: 45, color: "oklch(0.65 0.24 350)", icon: Instagram },
-  { name: "LinkedIn", value: 25, color: "oklch(0.55 0.18 250)", icon: Linkedin },
-  { name: "X", value: 30, color: "oklch(0.72 0.19 163)", icon: Twitter },
+  { name: "Instagram", value: 35, color: "oklch(0.65 0.24 350)", icon: Instagram },
+  { name: "LinkedIn", value: 20, color: "oklch(0.55 0.18 250)", icon: Linkedin },
+  { name: "X", value: 15, color: "oklch(0.72 0.19 163)", icon: Twitter },
+  { name: "YouTube", value: 30, color: "oklch(0.63 0.24 20)", icon: Youtube },
 ]
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; dataKey: string }>; label?: string }) {

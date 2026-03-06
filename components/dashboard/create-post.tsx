@@ -11,6 +11,7 @@ import {
   Instagram,
   Linkedin,
   Twitter,
+  Youtube,
   Sparkles,
   Check,
   Loader2,
@@ -46,6 +47,15 @@ const platforms = [
     activeBorder: "border-neon-x/40",
     glowClass: "glow-x",
   },
+  {
+    id: "youtube",
+    label: "YouTube",
+    icon: Youtube,
+    color: "text-red-500",
+    activeBg: "bg-red-500/10",
+    activeBorder: "border-red-500/40",
+    glowClass: "glow-youtube",
+  },
 ]
 
 const MAX_CAPTION_LENGTH = 2200
@@ -59,6 +69,9 @@ export function CreatePost({ onGenerateCaption }: CreatePostProps) {
   const [uploadedFile, setUploadedFile] = useState<{ name: string; type: string } | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [caption, setCaption] = useState("")
+  const [videoTitle, setVideoTitle] = useState("")
+  const [videoDescription, setVideoDescription] = useState("")
+  const [videoTags, setVideoTags] = useState("")
   const [loading, setLoading] = useState(false)
   const generateCaption = async () => {
     setLoading(true)
@@ -276,7 +289,9 @@ Bali never fails to steal my heart. Every moment here feels magical.
             {/* Caption with character counter */}
             <div className="mt-5 space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-muted-foreground">Caption</label>
+                <label className="text-xs font-medium text-muted-foreground">
+                  {selectedPlatforms.includes("youtube") ? "Short Caption (for Shorts or Community posts)" : "Caption"}
+                </label>
                 <span
                   className={cn(
                     "text-xs font-mono tabular-nums",
@@ -310,6 +325,54 @@ Bali never fails to steal my heart. Every moment here feels magical.
                 </div>
               </div>
             </div>
+
+            {/* YouTube-specific fields */}
+            {selectedPlatforms.includes("youtube") && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: "auto" }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-5 space-y-4 border-t border-border/40 pt-5"
+              >
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Video Title <span className="text-destructive">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={videoTitle}
+                    onChange={(e) => setVideoTitle(e.target.value)}
+                    placeholder="Enter your video title"
+                    className="w-full rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-200 focus:border-primary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Video Description
+                  </label>
+                  <textarea
+                    value={videoDescription}
+                    onChange={(e) => setVideoDescription(e.target.value)}
+                    placeholder="Describe your video content..."
+                    className="min-h-24 w-full resize-none rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-200 focus:border-primary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Tags / Keywords
+                  </label>
+                  <input
+                    type="text"
+                    value={videoTags}
+                    onChange={(e) => setVideoTags(e.target.value)}
+                    placeholder="Enter tags separated by commas"
+                    className="w-full rounded-xl border border-border/60 bg-secondary/30 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground transition-all duration-200 focus:border-primary/50 focus:bg-secondary/50 focus:outline-none focus:ring-1 focus:ring-primary/30"
+                  />
+                </div>
+              </motion.div>
+            )}
 
             <Button
   onClick={generateCaption}

@@ -14,6 +14,7 @@ import {
   Instagram,
   Linkedin,
   Twitter,
+  Youtube,
   Sparkles,
   Pencil,
   X,
@@ -82,6 +83,19 @@ export function CaptionPreview({ caption }: CaptionPreviewProps) {
       hoverColor: "hover:border-sky-500/50",
       scoreColor: "from-sky-500 to-blue-500",
       score: 91,
+    },
+    {
+      platform: "YouTube",
+      icon: Youtube,
+      caption:
+        "🌴 BALI TRAVEL VLOG: Paradise Found! 🌅 Join me on an incredible journey through the island of gods. From golden sunsets at Tanah Lot to the vibrant streets of Ubud, this video captures the magic that makes Bali a creator's dream destination.",
+      hashtags: "#YouTubeShorts #CreatorLife #VideoMarketing #BaliVlog #TravelContent #ContentCreator #YouTubeCreator",
+      color: "text-red-400",
+      bg: "bg-red-500/10",
+      borderColor: "border-red-500/30",
+      hoverColor: "hover:border-red-500/50",
+      scoreColor: "from-red-500 to-orange-500",
+      score: 96,
     },
   ]
 
