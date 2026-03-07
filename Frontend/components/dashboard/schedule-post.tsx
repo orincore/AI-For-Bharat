@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Calendar, Clock, Send, Trash2, Edit2, Instagram, Linkedin, Twitter, Youtube } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
 type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter' | 'YouTube';
 
@@ -93,8 +94,39 @@ export function SchedulePost() {
   const [videoTags, setVideoTags] = useState('');
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>(sampleScheduledPosts);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const userId = process.env.NEXT_PUBLIC_USER_ID || 'demo-user-123';
 
-  const handleSchedule = () => {
+  useEffect(() => {
+    loadScheduledPosts();
+  }, []);
+
+  const loadScheduledPosts = async () => {
+    try {
+      const response = await api.getScheduledPosts(userId);
+      if (response.success && response.data.length > 0) {
+        setScheduledPosts(response.data.map((post: any) => ({
+          id: post.id,
+          platform: post.platform.charAt(0).toUpperCase() + post.platform.slice(1) as PlatformType,
+          caption: post.caption,
+          scheduledDate: post.scheduledTime?.split('T')[0] || '',
+          scheduledTime: post.scheduledTime?.split('T')[1]?.substring(0, 5) || '',
+          createdAt: new Date(post.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }),
+          videoTitle: post.videoTitle,
+          videoDescription: post.videoDescription,
+          videoTags: post.videoTags,
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading scheduled posts:', error);
+    }
+  };
+
+  const handleSchedule = async () => {
     if (!caption.trim()) {
       toast({
         title: 'Error',
@@ -111,51 +143,37 @@ export function SchedulePost() {
       return;
     }
 
-    if (editingId) {
-      // Update existing post
-      setScheduledPosts(
-        scheduledPosts.map((post) =>
-          post.id === editingId
-            ? {
-                ...post,
-                platform,
-                caption,
-                scheduledDate: date,
-                scheduledTime: time,
-              }
-            : post
-        )
-      );
-      toast({
-        title: 'Updated!',
-        description: 'Your scheduled post has been updated.',
-      });
-      setEditingId(null);
-    } else {
-      // Create new post
-      const newPost: ScheduledPost = {
-        id: Date.now().toString(),
-        platform,
-        caption,
-        scheduledDate: date,
-        scheduledTime: time,
-        createdAt: new Date().toLocaleDateString('en-US', {
-          month: 'short',
-          day: 'numeric',
-          year: 'numeric',
-        }),
-      };
-      setScheduledPosts([newPost, ...scheduledPosts]);
-      toast({
-        title: 'Scheduled!',
-        description: 'Your post has been scheduled successfully.',
-      });
-    }
+    setLoading(true);
+    try {
+      const scheduledTime = `${date}T${time}:00.000Z`;
+      
+      const formData = new FormData();
+      formData.append('userId', userId);
+      formData.append('platform', platform.toLowerCase());
+      formData.append('caption', caption);
+      formData.append('scheduledTime', scheduledTime);
+      if (videoTitle) formData.append('videoTitle', videoTitle);
+      if (videoDescription) formData.append('videoDescription', videoDescription);
+      if (videoTags) formData.append('videoTags', videoTags);
 
-    // Reset form
-    setCaption('');
-    setDate('');
-    setTime('');
+      const response = await api.createPost(formData);
+      
+      if (response.success) {
+        await loadScheduledPosts();
+        toast({
+          title: editingId ? 'Updated!' : 'Scheduled!',
+          description: editingId ? 'Your scheduled post has been updated.' : 'Your post has been scheduled successfully.',
+        });
+        handleClearForm();
+      }
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to schedule post.',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEdit = (post: ScheduledPost) => {
@@ -166,19 +184,23 @@ export function SchedulePost() {
     setEditingId(post.id);
   };
 
-  const handleCancel = (id: string) => {
-    setScheduledPosts(scheduledPosts.filter((post) => post.id !== id));
-    if (editingId === id) {
-      setEditingId(null);
-      setCaption('');
-      setDate('');
-      setTime('');
-      setPlatform('Instagram');
+  const handleCancel = async (id: string) => {
+    try {
+      await api.deletePost(id);
+      setScheduledPosts(scheduledPosts.filter((post) => post.id !== id));
+      if (editingId === id) {
+        handleClearForm();
+      }
+      toast({
+        title: 'Cancelled',
+        description: 'The scheduled post has been removed.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to cancel post.',
+      });
     }
-    toast({
-      title: 'Cancelled',
-      description: 'The scheduled post has been removed.',
-    });
   };
 
   const handleClearForm = () => {
@@ -343,10 +365,11 @@ export function SchedulePost() {
             <div className="flex gap-3">
               <Button
                 onClick={handleSchedule}
+                disabled={loading}
                 className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground font-medium py-2"
               >
                 <Send className="w-4 h-4 mr-2" />
-                {editingId ? 'Update Post' : 'Schedule Post'}
+                {loading ? 'Scheduling...' : editingId ? 'Update Post' : 'Schedule Post'}
               </Button>
               {editingId && (
                 <Button

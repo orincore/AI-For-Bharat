@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { AISystemStatus } from "./ai-system-status"
 import { AgentWorkflow } from "./agent-workflow"
 import { AIRecommendation } from "./ai-recommendation"
@@ -33,6 +34,7 @@ import {
   LineChart,
   Line,
 } from "recharts"
+import { api } from "@/lib/api"
 
 const stats = [
   {
@@ -189,6 +191,85 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function DashboardOverview() {
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const userId = process.env.NEXT_PUBLIC_USER_ID || 'demo-user-123';
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      const response = await api.getDashboardStats(userId);
+      if (response.success) {
+        setDashboardData(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const displayStats = dashboardData ? [
+    {
+      title: "Total Posts",
+      value: dashboardData.totalPosts?.toString() || "0",
+      change: "+12.5%",
+      changeType: "positive" as const,
+      icon: FileText,
+      description: "vs last month",
+      gradient: "from-primary/20 to-neon-cyan/20",
+      iconBg: "bg-primary/10",
+      sparkline: [
+        { v: 40 }, { v: 55 }, { v: 48 }, { v: 62 }, { v: 58 }, { v: 72 }, { v: 80 },
+      ],
+    },
+    {
+      title: "Engagement Rate",
+      value: dashboardData.avgEngagementRate + "%",
+      change: "+2.1%",
+      changeType: "positive" as const,
+      icon: TrendingUp,
+      description: "vs last month",
+      gradient: "from-neon-cyan/20 to-primary/20",
+      iconBg: "bg-neon-cyan/10",
+      sparkline: [
+        { v: 3.2 }, { v: 3.8 }, { v: 3.5 }, { v: 4.1 }, { v: 3.9 }, { v: 4.4 }, { v: 4.6 },
+      ],
+    },
+    {
+      title: "Scheduled Posts",
+      value: dashboardData.scheduledPosts?.toString() || "0",
+      change: "5 today",
+      changeType: "neutral" as const,
+      icon: Clock,
+      description: "pending publish",
+      gradient: "from-chart-3/20 to-primary/20",
+      iconBg: "bg-chart-3/10",
+      sparkline: [
+        { v: 15 }, { v: 18 }, { v: 12 }, { v: 20 }, { v: 25 }, { v: 22 }, { v: 23 },
+      ],
+    },
+    {
+      title: "AI Captions",
+      value: "847",
+      change: "+34.2%",
+      changeType: "positive" as const,
+      icon: Sparkles,
+      description: "generated this month",
+      gradient: "from-primary/20 to-chart-2/20",
+      iconBg: "bg-primary/10",
+      sparkline: [
+        { v: 30 }, { v: 42 }, { v: 55 }, { v: 60 }, { v: 72 }, { v: 78 }, { v: 85 },
+      ],
+    },
+  ] : stats;
+
+  const displayWeeklyData = dashboardData?.weeklyData || weeklyData;
+  const displayPlatformPerformance = dashboardData?.platformPerformance || platformPerformance;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -206,7 +287,7 @@ export function DashboardOverview() {
         animate="show"
         className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
       >
-        {stats.map((stat) => (
+        {displayStats.map((stat) => (
           <motion.div key={stat.title} variants={item}>
             <Card className="glow-card group relative border-border/60 bg-card transition-all duration-300 hover:scale-[1.02] hover:border-primary/30 hover:-translate-y-1 hover:shadow-xl">
               <div
@@ -319,7 +400,7 @@ export function DashboardOverview() {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart data={weeklyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+              <AreaChart data={displayWeeklyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                 <defs>
                   <linearGradient id="engagementGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="oklch(0.72 0.19 163)" stopOpacity={0.3} />
@@ -432,7 +513,7 @@ export function DashboardOverview() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                {platformPerformance.map((platform, index) => (
+                {displayPlatformPerformance.map((platform: any, index: number) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, x: -8 }}

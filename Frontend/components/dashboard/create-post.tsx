@@ -76,19 +76,22 @@ export function CreatePost({ onGenerateCaption }: CreatePostProps) {
   const generateCaption = async () => {
     setLoading(true)
     try {
+      const platform = selectedPlatforms[0] || 'instagram'
       const response = await fetch('/api/generate-caption', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ caption: caption || 'Create an engaging Instagram caption about travel and adventure.' }),
+        body: JSON.stringify({ 
+          caption: caption || 'Create an engaging caption about travel and adventure.',
+          platform: platform.charAt(0).toUpperCase() + platform.slice(1)
+        }),
       })
       const data = await response.json()
       setCaption(data.caption)
       onGenerateCaption(data.caption)
     } catch (error) {
       console.error('Error generating caption:', error)
-      // Fallback to mock caption
       const mockCaption = `Exploring paradise one golden sunset at a time 🌅
 Bali never fails to steal my heart. Every moment here feels magical.
 #TravelReels #BaliLife #ContentCreator #ExploreMore #IslandVibes`

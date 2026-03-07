@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Copy, Trash2, Heart, MessageCircle, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Copy, Trash2, Heart, MessageCircle, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/hooks/use-toast';
+import { api } from '@/lib/api';
 
 type PlatformType = 'Instagram' | 'LinkedIn' | 'Twitter' | 'YouTube';
 
@@ -95,6 +96,57 @@ const sampleContent: ContentItem[] = [
 export function ContentLibrary() {
   const [content, setContent] = useState<ContentItem[]>(sampleContent);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const userId = process.env.NEXT_PUBLIC_USER_ID || 'demo-user-123';
+
+  useEffect(() => {
+    loadContentLibrary();
+  }, []);
+
+  const loadContentLibrary = async () => {
+    setLoading(true);
+    try {
+      const response = await api.getContentLibrary(userId);
+      if (response.success && response.data.length > 0) {
+        setContent(response.data.map((item: any) => ({
+          id: item.id,
+          caption: item.caption,
+          thumbnail: item.thumbnail,
+          platform: item.platform.charAt(0).toUpperCase() + item.platform.slice(1) as PlatformType,
+          likes: item.likes,
+          comments: item.comments,
+          createdAt: new Date(item.createdAt).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+          }),
+        })));
+      }
+    } catch (error) {
+      console.error('Error loading content library:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const syncContent = async (platform: string) => {
+    setLoading(true);
+    try {
+      await api.syncContentLibrary(userId, platform.toLowerCase());
+      await loadContentLibrary();
+      toast({
+        title: 'Synced!',
+        description: `${platform} content has been synced.`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to sync content.',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCopyCaption = (caption: string, id: string) => {
     navigator.clipboard.writeText(caption);
@@ -104,24 +156,43 @@ export function ContentLibrary() {
     });
   };
 
-  const handleDelete = (id: string) => {
-    setContent(content.filter((item) => item.id !== id));
-    toast({
-      title: 'Deleted',
-      description: 'Content has been removed from your library.',
-    });
+  const handleDelete = async (id: string) => {
+    try {
+      await api.deleteContent(id);
+      setContent(content.filter((item) => item.id !== id));
+      toast({
+        title: 'Deleted',
+        description: 'Content has been removed from your library.',
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete content.',
+      });
+    }
   };
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Content Library
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Manage and organize your social media posts
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-foreground">
+            Content Library
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Manage and organize your social media posts
+          </p>
+        </div>
+        <Button
+          onClick={() => loadContentLibrary()}
+          disabled={loading}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
       </div>
 
       {/* Content Count */}
