@@ -266,12 +266,12 @@ export function DashboardOverview() {
 
   const displayStats = dashboardData ? [
     {
-      title: "Total Posts",
-      value: dashboardData.totalPosts?.toString() || "0",
+      title: "Total Followers",
+      value: dashboardData.totalFollowers?.toLocaleString() || "0",
       change: "+12.5%",
       changeType: "positive" as const,
-      icon: FileText,
-      description: "vs last month",
+      icon: TrendingUp,
+      description: "Instagram + YouTube",
       gradient: "from-primary/20 to-neon-cyan/20",
       iconBg: "bg-primary/10",
       sparkline: [
@@ -279,12 +279,12 @@ export function DashboardOverview() {
       ],
     },
     {
-      title: "Engagement Rate",
-      value: dashboardData.avgEngagementRate + "%",
-      change: "+2.1%",
+      title: "Total Posts",
+      value: dashboardData.totalPosts?.toString() || "0",
+      change: "+12.5%",
       changeType: "positive" as const,
-      icon: TrendingUp,
-      description: "vs last month",
+      icon: FileText,
+      description: "across all platforms",
       gradient: "from-neon-cyan/20 to-primary/20",
       iconBg: "bg-neon-cyan/10",
       sparkline: [
@@ -350,14 +350,17 @@ export function DashboardOverview() {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center max-w-md">
-          <Instagram className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-          <h3 className="text-xl font-semibold mb-2">No Instagram Account Connected</h3>
+          <div className="flex justify-center gap-4 mb-4">
+            <Instagram className="h-16 w-16 text-muted-foreground" />
+            <Youtube className="h-16 w-16 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">No Accounts Connected</h3>
           <p className="text-muted-foreground mb-6">
-            Connect your Instagram Business account to see real-time analytics and insights.
+            Connect your Instagram and YouTube accounts to see real-time analytics and insights.
           </p>
           <Button onClick={() => window.location.href = '/dashboard?tab=settings'}>
-            <Instagram className="h-4 w-4 mr-2" />
-            Connect Instagram Account
+            <Sparkles className="h-4 w-4 mr-2" />
+            Connect Accounts
           </Button>
         </div>
       </div>
@@ -541,10 +544,10 @@ export function DashboardOverview() {
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle className="text-base font-semibold text-foreground">
-                Weekly Engagement
+                Weekly Engagement (Combined)
               </CardTitle>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Engagement and reach across all platforms
+                Real-time data from Instagram + YouTube
               </p>
             </div>
             <div className="flex items-center gap-3">

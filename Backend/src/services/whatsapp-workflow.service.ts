@@ -809,6 +809,7 @@ export class WhatsAppWorkflowService {
     };
 
     const priorMessagesRaw = await dynamoDBService.listChatMessages(conversationId, 40);
+    const hasAssistantResponse = priorMessagesRaw.some((msg: any) => msg.role === 'assistant');
     const priorMessages = priorMessagesRaw
       .map((msg: any) => {
         const role: 'assistant' | 'user' = msg.role === 'assistant' ? 'assistant' : 'user';
@@ -822,7 +823,13 @@ export class WhatsAppWorkflowService {
 
     const context = { channel: 'whatsapp' };
     
-    return await bedrockService.answerQuestionWithTools(message, context, toolExecutor, { priorMessages });
+    const aiResponse = await bedrockService.answerQuestionWithTools(message, context, toolExecutor, { priorMessages });
+
+    if (!hasAssistantResponse) {
+      return `Hi! I'm Orin AI, your social media copilot. ${aiResponse}`;
+    }
+
+    return aiResponse;
   }
 }
 

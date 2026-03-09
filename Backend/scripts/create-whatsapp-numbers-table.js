@@ -5,8 +5,8 @@ const {
 } = require('@aws-sdk/client-dynamodb');
 require('dotenv').config();
 
-const region = process.env.AWS_REGION || 'us-east-1';
-const tablePrefix = process.env.DYNAMODB_TABLE_PREFIX || 'orin_';
+const region = process.env.AWS_REGION || 'ap-south-1';
+const tablePrefix = process.env.DYNAMODB_TABLE_PREFIX || 'social_media_';
 const tableName = `${tablePrefix}whatsapp_numbers`;
 
 const client = new DynamoDBClient({ region });

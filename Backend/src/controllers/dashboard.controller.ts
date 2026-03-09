@@ -3,6 +3,7 @@ import { dynamoDBService } from '../services/dynamodb.service';
 import { TABLES } from '../config/aws';
 import { AuthRequest } from '../middleware/auth';
 import { ConnectedAccount } from '../types';
+import { youtubeService } from '../services/youtube.service';
 
 interface InstagramInsights {
   followersCount: number;
@@ -12,6 +13,17 @@ interface InstagramInsights {
   totalEngagement: number;
   weeklyData: Array<{ day: string; engagement: number; reach: number }>;
   recentPosts: Array<{ platform: string; action: string; time: string; status: string; caption?: string }>;
+  profilePicture?: string;
+}
+
+interface YouTubeInsights {
+  subscriberCount: number;
+  videoCount: number;
+  subscriberGrowth: string;
+  totalViews: number;
+  totalEngagement: number;
+  weeklyData: Array<{ day: string; engagement: number; reach: number }>;
+  recentVideos: Array<{ platform: string; action: string; time: string; status: string; title?: string }>;
   profilePicture?: string;
 }
 
@@ -28,26 +40,24 @@ export class DashboardController {
 
       console.log('📊 Fetching dashboard stats for user:', userId);
 
-      // Get connected Instagram accounts
-      const connectedAccounts = await dynamoDBService.queryByIndex(
+      // Get all connected accounts
+      const allConnectedAccounts = await dynamoDBService.queryByIndex(
         TABLES.CONNECTED_ACCOUNTS,
-        'UserPlatformIndex',
-        '#userId = :userId AND #platform = :platform',
-        {
-          ':userId': userId,
-          ':platform': 'instagram',
-        },
-        {
-          '#userId': 'userId',
-          '#platform': 'platform',
-        }
+        'UserIdIndex',
+        '#userId = :userId',
+        { ':userId': userId },
+        { '#userId': 'userId' }
       ) as ConnectedAccount[];
 
-      console.log('📊 Connected accounts:', connectedAccounts.length);
+      const instagramAccounts = allConnectedAccounts.filter(acc => acc.platform === 'instagram');
+      const youtubeAccounts = allConnectedAccounts.filter(acc => acc.platform === 'youtube');
 
-      const activeAccount = connectedAccounts.find(acc => acc.isActive) || connectedAccounts[0];
+      console.log('📊 Connected accounts - Instagram:', instagramAccounts.length, 'YouTube:', youtubeAccounts.length);
 
-      if (!activeAccount) {
+      const activeInstagramAccount = instagramAccounts.find(acc => acc.isActive) || instagramAccounts[0];
+      const activeYouTubeAccount = youtubeAccounts.find(acc => acc.isActive) || youtubeAccounts[0];
+
+      if (!activeInstagramAccount && !activeYouTubeAccount) {
         return res.json({
           success: true,
           data: {
@@ -62,10 +72,17 @@ export class DashboardController {
         });
       }
 
-      console.log('📊 Active account:', activeAccount.platformUsername);
+      console.log('📊 Active Instagram:', activeInstagramAccount?.platformUsername || 'None');
+      console.log('📊 Active YouTube:', activeYouTubeAccount?.platformUsername || 'None');
 
-      // Fetch Instagram insights from Graph API
-      const insights = await this.fetchInstagramInsights(activeAccount);
+      // Fetch insights from both platforms
+      const instagramInsights = activeInstagramAccount 
+        ? await this.fetchInstagramInsights(activeInstagramAccount)
+        : null;
+      
+      const youtubeInsights = activeYouTubeAccount
+        ? await this.fetchYouTubeInsights(activeYouTubeAccount)
+        : null;
 
       // Get posts from DynamoDB (fallback for scheduled items)
       let posts: any[] = [];
@@ -87,7 +104,8 @@ export class DashboardController {
 
       const postsArray = Array.isArray(posts) ? posts : [];
       const instagramPosts = postsArray.filter((p: any) => p.platform === 'instagram');
-      const scheduledPosts = instagramPosts.filter((p: any) => p.status === 'scheduled');
+      const youtubePosts = postsArray.filter((p: any) => p.platform === 'youtube');
+      const scheduledPosts = [...instagramPosts, ...youtubePosts].filter((p: any) => p.status === 'scheduled');
 
       // Get analytics data (fallback for weekly chart)
       let analytics: any[] = [];
@@ -108,62 +126,101 @@ export class DashboardController {
       }
 
       const instagramAnalytics = analytics.filter((a: any) => a.platform === 'instagram');
-      const analyticsEngagement = instagramAnalytics.reduce((sum: number, a: any) => sum + (a.engagement || 0), 0);
-      const analyticsReach = instagramAnalytics.reduce((sum: number, a: any) => sum + (a.reach || 0), 0);
+      const youtubeAnalytics = analytics.filter((a: any) => a.platform === 'youtube');
+      
+      const analyticsEngagement = [...instagramAnalytics, ...youtubeAnalytics].reduce((sum: number, a: any) => sum + (a.engagement || 0), 0);
+      const analyticsReach = [...instagramAnalytics, ...youtubeAnalytics].reduce((sum: number, a: any) => sum + (a.reach || 0), 0);
 
-      const totalReach = insights.totalReach || analyticsReach || 0;
-      const totalEngagement = insights.totalEngagement || analyticsEngagement || 0;
+      const totalReach = (instagramInsights?.totalReach || 0) + (youtubeInsights?.totalViews || 0) || analyticsReach || 0;
+      const totalEngagement = (instagramInsights?.totalEngagement || 0) + (youtubeInsights?.totalEngagement || 0) || analyticsEngagement || 0;
       const avgEngagementRate = totalReach > 0 ? Number(((totalEngagement / totalReach) * 100).toFixed(1)) : 0;
 
-      const weeklyDataFromAnalytics = this.buildWeeklyData(instagramAnalytics);
-      const weeklyData = insights.weeklyData?.length ? insights.weeklyData : weeklyDataFromAnalytics;
+      // Combine weekly data from both platforms
+      const weeklyData = this.combineWeeklyData(
+        instagramInsights?.weeklyData || [],
+        youtubeInsights?.weeklyData || []
+      );
 
-      const totalPostsFromDb = instagramPosts.length;
-      const totalPosts = totalPostsFromDb || insights.mediaCount || 0;
+      const totalPostsFromDb = instagramPosts.length + youtubePosts.length;
+      const totalPosts = totalPostsFromDb || (instagramInsights?.mediaCount || 0) + (youtubeInsights?.videoCount || 0);
       const scheduledPostsCount = scheduledPosts.length;
 
-      const recentActivityFromPosts = instagramPosts
+      const recentActivityFromPosts = [...instagramPosts, ...youtubePosts]
         .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .slice(0, 5)
         .map((post: any) => ({
-          platform: 'Instagram',
-          action: post.status === 'published' ? 'Post published' : post.status === 'scheduled' ? 'Post scheduled' : 'Draft created',
+          platform: post.platform === 'instagram' ? 'Instagram' : 'YouTube',
+          action: post.status === 'published' ? (post.platform === 'youtube' ? 'Video published' : 'Post published') : post.status === 'scheduled' ? (post.platform === 'youtube' ? 'Video scheduled' : 'Post scheduled') : 'Draft created',
           time: this.getRelativeTime(post.createdAt),
           status: post.status,
-          caption: post.caption?.substring(0, 50) || '',
+          caption: post.caption?.substring(0, 50) || post.title?.substring(0, 50) || '',
         }));
 
-      const recentActivity = insights.recentPosts?.length ? insights.recentPosts : recentActivityFromPosts;
+      const combinedRecentActivity = [
+        ...(instagramInsights?.recentPosts || []),
+        ...(youtubeInsights?.recentVideos || [])
+      ].sort((a: any, b: any) => {
+        const timeA = this.parseRelativeTime(a.time);
+        const timeB = this.parseRelativeTime(b.time);
+        return timeA - timeB;
+      }).slice(0, 5);
 
-      const engagementBase = totalReach > 0 ? totalReach : (insights.followersCount || 1) * Math.max(recentActivity.length, 1);
+      const recentActivity = combinedRecentActivity.length ? combinedRecentActivity : recentActivityFromPosts;
+
+      const totalFollowers = (instagramInsights?.followersCount || 0) + (youtubeInsights?.subscriberCount || 0);
+      const engagementBase = totalReach > 0 ? totalReach : totalFollowers * Math.max(recentActivity.length, 1);
       const normalizedAvgEngagementRate = engagementBase > 0 ? Number(((totalEngagement / engagementBase) * 100).toFixed(1)) : 0;
 
-      const platformPerformance = [{
-        platform: 'Instagram',
-        followers: insights.followersCount || 0,
-        growth: insights.followerGrowth || '+0%',
-        posts: totalPosts,
-        engagement: `${normalizedAvgEngagementRate}%`,
-        username: activeAccount.platformUsername,
-        color: 'text-neon-instagram',
-      }];
+      const platformPerformance = [];
+      
+      if (activeInstagramAccount && instagramInsights) {
+        platformPerformance.push({
+          platform: 'Instagram',
+          followers: instagramInsights.followersCount || 0,
+          growth: instagramInsights.followerGrowth || '+0%',
+          posts: instagramPosts.length || instagramInsights.mediaCount,
+          engagement: `${instagramInsights.totalReach > 0 ? Number(((instagramInsights.totalEngagement / instagramInsights.totalReach) * 100).toFixed(1)) : 0}%`,
+          username: activeInstagramAccount.platformUsername,
+          color: 'text-neon-instagram',
+        });
+      }
+      
+      if (activeYouTubeAccount && youtubeInsights) {
+        platformPerformance.push({
+          platform: 'YouTube',
+          followers: youtubeInsights.subscriberCount || 0,
+          growth: youtubeInsights.subscriberGrowth || '+0%',
+          posts: youtubePosts.length || youtubeInsights.videoCount,
+          engagement: `${youtubeInsights.totalViews > 0 ? Number(((youtubeInsights.totalEngagement / youtubeInsights.totalViews) * 100).toFixed(1)) : 0}%`,
+          username: activeYouTubeAccount.platformUsername,
+          color: 'text-red-500',
+        });
+      }
 
       res.json({
         success: true,
         data: {
           hasConnectedAccount: true,
-          activeAccount: {
-            username: activeAccount.platformUsername,
-            profilePicture: insights.profilePicture || activeAccount.profilePicture,
-            platformAccountId: activeAccount.platformAccountId,
-            followersCount: insights.followersCount || 0,
+          activeAccounts: {
+            instagram: activeInstagramAccount ? {
+              username: activeInstagramAccount.platformUsername,
+              profilePicture: instagramInsights?.profilePicture || activeInstagramAccount.profilePicture,
+              platformAccountId: activeInstagramAccount.platformAccountId,
+              followersCount: instagramInsights?.followersCount || 0,
+            } : null,
+            youtube: activeYouTubeAccount ? {
+              username: activeYouTubeAccount.platformUsername,
+              profilePicture: youtubeInsights?.profilePicture || activeYouTubeAccount.profilePicture,
+              platformAccountId: activeYouTubeAccount.platformAccountId,
+              subscriberCount: youtubeInsights?.subscriberCount || 0,
+            } : null,
           },
           totalPosts,
           scheduledPosts: scheduledPostsCount,
           avgEngagementRate: normalizedAvgEngagementRate,
           totalReach,
           totalEngagement,
-          followersCount: insights.followersCount || 0,
+          totalFollowers,
           platformPerformance,
           weeklyData,
           recentActivity,
@@ -297,6 +354,152 @@ export class DashboardController {
     }
 
     return last7Days;
+  }
+
+  private async fetchYouTubeInsights(account: ConnectedAccount): Promise<YouTubeInsights> {
+    const defaultInsights: YouTubeInsights = {
+      subscriberCount: 0,
+      videoCount: 0,
+      subscriberGrowth: '+0%',
+      totalViews: 0,
+      totalEngagement: 0,
+      weeklyData: [],
+      recentVideos: [],
+      profilePicture: account.profilePicture,
+    };
+
+    try {
+      // Get channel statistics
+      const channelResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${account.platformAccountId}&access_token=${account.accessToken}`
+      );
+      const channelData = await channelResponse.json() as any;
+
+      if (!channelData.items || channelData.items.length === 0) {
+        return defaultInsights;
+      }
+
+      const channel = channelData.items[0];
+      const subscriberCount = Number(channel.statistics?.subscriberCount) || 0;
+      const videoCount = Number(channel.statistics?.videoCount) || 0;
+      const profilePicture = channel.snippet?.thumbnails?.default?.url || account.profilePicture;
+
+      // Get recent videos
+      const videosResponse = await fetch(
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${account.platformAccountId}&order=date&maxResults=10&type=video&access_token=${account.accessToken}`
+      );
+      const videosData = await videosResponse.json() as any;
+
+      const videoIds = (videosData.items || []).map((item: any) => item.id.videoId).join(',');
+
+      // Get video statistics
+      let totalViews = 0;
+      let totalEngagement = 0;
+      const recentVideos: any[] = [];
+      const weeklyDataMap: Record<string, { reach: number; engagement: number }> = {};
+
+      if (videoIds) {
+        const statsResponse = await fetch(
+          `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&access_token=${account.accessToken}`
+        );
+        const statsData = await statsResponse.json() as any;
+
+        (statsData.items || []).forEach((video: any) => {
+          const views = Number(video.statistics?.viewCount) || 0;
+          const likes = Number(video.statistics?.likeCount) || 0;
+          const comments = Number(video.statistics?.commentCount) || 0;
+          const engagement = likes + comments;
+
+          totalViews += views;
+          totalEngagement += engagement;
+
+          const publishedAt = video.snippet?.publishedAt;
+          const day = new Date(publishedAt).toLocaleDateString('en-US', { weekday: 'short' });
+          
+          if (!weeklyDataMap[day]) {
+            weeklyDataMap[day] = { reach: 0, engagement: 0 };
+          }
+          weeklyDataMap[day].reach += views;
+          weeklyDataMap[day].engagement += engagement;
+
+          recentVideos.push({
+            platform: 'YouTube',
+            action: 'Video published',
+            time: this.getRelativeTime(publishedAt),
+            status: 'published',
+            title: video.snippet?.title || '',
+            engagement,
+          });
+        });
+      }
+
+      const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      const weeklyData = orderedDays.map((day) => ({
+        day,
+        engagement: weeklyDataMap[day]?.engagement || 0,
+        reach: weeklyDataMap[day]?.reach || 0,
+      }));
+
+      return {
+        subscriberCount,
+        videoCount,
+        subscriberGrowth: '+0%',
+        totalViews,
+        totalEngagement,
+        weeklyData,
+        recentVideos,
+        profilePicture,
+      };
+    } catch (error) {
+      console.error('Error fetching YouTube insights:', error);
+      return defaultInsights;
+    }
+  }
+
+  private combineWeeklyData(
+    instagramData: Array<{ day: string; engagement: number; reach: number }>,
+    youtubeData: Array<{ day: string; engagement: number; reach: number }>
+  ): Array<{ day: string; engagement: number; reach: number }> {
+    const orderedDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const combinedMap: Record<string, { engagement: number; reach: number }> = {};
+
+    // Combine Instagram data
+    instagramData.forEach((item) => {
+      if (!combinedMap[item.day]) {
+        combinedMap[item.day] = { engagement: 0, reach: 0 };
+      }
+      combinedMap[item.day].engagement += item.engagement;
+      combinedMap[item.day].reach += item.reach;
+    });
+
+    // Combine YouTube data
+    youtubeData.forEach((item) => {
+      if (!combinedMap[item.day]) {
+        combinedMap[item.day] = { engagement: 0, reach: 0 };
+      }
+      combinedMap[item.day].engagement += item.engagement;
+      combinedMap[item.day].reach += item.reach;
+    });
+
+    return orderedDays.map((day) => ({
+      day,
+      engagement: combinedMap[day]?.engagement || 0,
+      reach: combinedMap[day]?.reach || 0,
+    }));
+  }
+
+  private parseRelativeTime(timeStr: string): number {
+    const match = timeStr.match(/(\d+)([mhd])/);
+    if (!match) return Date.now();
+
+    const value = parseInt(match[1]);
+    const unit = match[2];
+
+    const now = Date.now();
+    if (unit === 'm') return now - value * 60 * 1000;
+    if (unit === 'h') return now - value * 60 * 60 * 1000;
+    if (unit === 'd') return now - value * 24 * 60 * 60 * 1000;
+    return now;
   }
 
   private getRelativeTime(dateString: string): string {
