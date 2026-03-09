@@ -2,6 +2,7 @@ import { dynamoDBService } from './dynamodb.service';
 import { msg91Service } from './msg91.service';
 import { bedrockService } from './bedrock.service';
 import { toolExecutorService } from './tool-executor.service';
+import { s3Service } from './s3.service';
 import { v4 as uuidv4 } from 'uuid';
 
 const TABLES = {
@@ -173,10 +174,25 @@ Type "STOP" anytime to cancel the upload flow.`;
     mediaUrl: string,
     mediaType: 'image' | 'video'
   ): Promise<string> {
+    let finalMediaUrl = mediaUrl;
+    
+    // Upload WhatsApp media to S3 for Instagram compatibility
+    if (mediaUrl.includes('lookaside.fbsbx.com') || mediaUrl.includes('whatsapp')) {
+      try {
+        console.log(`📤 Uploading WhatsApp media to S3: ${mediaUrl}`);
+        const s3Upload = await s3Service.uploadFromUrl(mediaUrl, userId, mediaType);
+        finalMediaUrl = s3Upload.url;
+        console.log(`✅ Media uploaded to S3: ${finalMediaUrl}`);
+      } catch (error: any) {
+        console.error('❌ Failed to upload media to S3:', error.message);
+        return `❌ Failed to process your ${mediaType}. Please try uploading again.`;
+      }
+    }
+    
     const workflowState: WorkflowState = {
       type: platform === 'instagram' ? 'instagram_post' : 'youtube_post',
       step: 'awaiting_caption',
-      mediaUrl,
+      mediaUrl: finalMediaUrl,
       mediaType,
       platform,
     };

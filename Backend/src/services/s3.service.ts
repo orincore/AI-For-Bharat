@@ -3,6 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, S3_BUCKET, S3_BUCKET_REGION } from '../config/aws';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadResponse } from '../types';
+import axios from 'axios';
 
 export class S3Service {
   async uploadFile(
@@ -17,6 +18,43 @@ export class S3Service {
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
+    });
+
+    await s3Client.send(command);
+
+    const url = `https://${S3_BUCKET}.s3.${S3_BUCKET_REGION}.amazonaws.com/${key}`;
+
+    return {
+      url,
+      key,
+      bucket: S3_BUCKET,
+    };
+  }
+
+  async uploadFromUrl(
+    mediaUrl: string,
+    userId: string,
+    mediaType: 'image' | 'video'
+  ): Promise<UploadResponse> {
+    const response = await axios.get(mediaUrl, {
+      responseType: 'arraybuffer',
+      timeout: 30000,
+    });
+
+    const buffer = Buffer.from(response.data);
+    const contentType = response.headers['content-type'] || (mediaType === 'image' ? 'image/jpeg' : 'video/mp4');
+    
+    const extension = mediaType === 'image' 
+      ? (contentType.includes('png') ? 'png' : 'jpg')
+      : 'mp4';
+    
+    const key = `whatsapp/${userId}/${uuidv4()}.${extension}`;
+
+    const command = new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      Body: buffer,
+      ContentType: contentType,
     });
 
     await s3Client.send(command);
