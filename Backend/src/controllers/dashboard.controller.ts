@@ -369,10 +369,54 @@ export class DashboardController {
     };
 
     try {
+      // Check if token is expired and refresh if needed
+      let accessToken = account.accessToken;
+      if (account.tokenExpiry && youtubeService.isTokenExpired(account.tokenExpiry)) {
+        console.log('🔄 YouTube token expired, refreshing...');
+        if (!account.refreshToken) {
+          console.error('❌ No refresh token available for YouTube account');
+          return defaultInsights;
+        }
+        try {
+          const refreshed = await youtubeService.refreshAccessToken(account.refreshToken);
+          accessToken = refreshed.access_token;
+          const newExpiry = new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString();
+          
+          // Update token in database
+          await dynamoDBService.update(
+            TABLES.CONNECTED_ACCOUNTS,
+            { id: account.id },
+            'SET accessToken = :accessToken, tokenExpiry = :tokenExpiry, refreshToken = :refreshToken, updatedAt = :updatedAt',
+            {
+              ':accessToken': accessToken,
+              ':tokenExpiry': newExpiry,
+              ':refreshToken': refreshed.refresh_token || account.refreshToken,
+              ':updatedAt': new Date().toISOString(),
+            }
+          );
+          console.log('✅ YouTube token refreshed successfully');
+        } catch (error: any) {
+          console.error('❌ Failed to refresh YouTube token:', error.message);
+          return defaultInsights;
+        }
+      }
+
       // Get channel statistics
       const channelResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${account.platformAccountId}&access_token=${account.accessToken}`
+        `https://www.googleapis.com/youtube/v3/channels?part=statistics,snippet&id=${account.platformAccountId}&access_token=${accessToken}`
       );
+      
+      if (!channelResponse.ok) {
+        const errorData = await channelResponse.json() as any;
+        console.error('❌ YouTube API error:', channelResponse.status, errorData);
+        
+        // If 403, token might be invalid even after refresh
+        if (channelResponse.status === 403) {
+          console.error('❌ YouTube API 403: Token lacks required scopes or is invalid');
+        }
+        return defaultInsights;
+      }
+      
       const channelData = await channelResponse.json() as any;
 
       if (!channelData.items || channelData.items.length === 0) {
@@ -386,8 +430,23 @@ export class DashboardController {
 
       // Get recent videos
       const videosResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${account.platformAccountId}&order=date&maxResults=10&type=video&access_token=${account.accessToken}`
+        `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${account.platformAccountId}&order=date&maxResults=10&type=video&access_token=${accessToken}`
       );
+      
+      if (!videosResponse.ok) {
+        console.error('❌ Failed to fetch YouTube videos:', videosResponse.status);
+        return {
+          subscriberCount,
+          videoCount,
+          subscriberGrowth: '+0%',
+          totalViews: 0,
+          totalEngagement: 0,
+          weeklyData: [],
+          recentVideos: [],
+          profilePicture,
+        };
+      }
+      
       const videosData = await videosResponse.json() as any;
 
       const videoIds = (videosData.items || []).map((item: any) => item.id.videoId).join(',');
@@ -400,8 +459,23 @@ export class DashboardController {
 
       if (videoIds) {
         const statsResponse = await fetch(
-          `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&access_token=${account.accessToken}`
+          `https://www.googleapis.com/youtube/v3/videos?part=statistics,snippet&id=${videoIds}&access_token=${accessToken}`
         );
+        
+        if (!statsResponse.ok) {
+          console.error('❌ Failed to fetch YouTube video stats:', statsResponse.status);
+          return {
+            subscriberCount,
+            videoCount,
+            subscriberGrowth: '+0%',
+            totalViews: 0,
+            totalEngagement: 0,
+            weeklyData: [],
+            recentVideos: [],
+            profilePicture,
+          };
+        }
+        
         const statsData = await statsResponse.json() as any;
 
         (statsData.items || []).forEach((video: any) => {
