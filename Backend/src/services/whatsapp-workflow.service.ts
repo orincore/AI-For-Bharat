@@ -110,16 +110,16 @@ export class WhatsAppWorkflowService {
 
     // If we're in an active workflow, continue it
     if (workflowState.step) {
-      // Only clear workflow if user is in initial steps and sends unrelated message
-      const isInitialStep = workflowState.step === 'awaiting_media' || workflowState.step === 'awaiting_platform';
+      // Only clear workflow if user is in awaiting_media step and sends unrelated message
+      const isAwaitingMedia = workflowState.step === 'awaiting_media';
       const isUnrelatedMessage = !mediaUrl && !postingIntent.detected && message.trim().length < 50;
       
-      if (isInitialStep && isUnrelatedMessage) {
-        console.log('🔁 User sent a non-posting request while in initial workflow step. Clearing workflow state.');
+      if (isAwaitingMedia && isUnrelatedMessage) {
+        console.log('🔁 User sent a non-posting request while awaiting media. Clearing workflow state.');
         await this.clearWorkflowState(conversationId);
         // Continue to normal chat processing below
       } else {
-        // Continue the workflow for all other steps (caption, details, approval, etc.)
+        // Continue the workflow for all other steps (platform selection, caption, details, approval, etc.)
         return await this.continueWorkflow(userId, conversationId, message, phoneNumber, workflowState, mediaUrl, mediaType);
       }
     }
