@@ -284,7 +284,7 @@ export class ToolExecutorService {
     });
   }
 
-  private async postToInstagram(userId: string, input: { imageUrl: string; caption: string }): Promise<string> {
+  private async postToInstagram(userId: string, input: { imageUrl: string; caption: string; mediaType?: string }): Promise<string> {
     const accounts = await dynamoDBService.queryByIndex(
       TABLES.CONNECTED_ACCOUNTS,
       'UserPlatformIndex',
@@ -303,12 +303,22 @@ export class ToolExecutorService {
       return JSON.stringify({ success: false, error: 'Instagram account access token missing. Please reconnect your Instagram account.' });
     }
     
-    const result = await metaService.publishInstagramImage(
-      account.platformAccountId,
-      input.imageUrl,
-      input.caption,
-      account.accessToken
-    );
+    // Detect if this is a video based on URL extension or mediaType
+    const isVideo = input.mediaType === 'video' || /\.(mp4|mov|avi)$/i.test(input.imageUrl);
+    
+    const result = isVideo 
+      ? await metaService.publishInstagramReel(
+          account.platformAccountId,
+          input.imageUrl,
+          input.caption,
+          account.accessToken
+        )
+      : await metaService.publishInstagramImage(
+          account.platformAccountId,
+          input.imageUrl,
+          input.caption,
+          account.accessToken
+        );
 
     await dynamoDBService.put(TABLES.POST_HISTORY, {
       id: `${userId}_${Date.now()}`,

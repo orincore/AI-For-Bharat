@@ -355,7 +355,7 @@ Type "STOP" anytime to cancel the upload flow.`;
         try {
           const result = await toolExecutorService.executeTool(
             'post_to_instagram',
-            { imageUrl: state.mediaUrl!, caption: state.caption! },
+            { imageUrl: state.mediaUrl!, caption: state.caption!, mediaType: state.mediaType },
             userId
           );
           
