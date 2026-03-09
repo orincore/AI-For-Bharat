@@ -240,6 +240,21 @@ Type "STOP" anytime to cancel the upload flow.`;
     mediaType?: 'image' | 'video'
   ): Promise<string> {
     if (state.step === 'awaiting_platform') {
+      // Get the latest media URL from recent messages to ensure we use phone91 URL
+      let finalMediaUrl = state.mediaUrl || mediaUrl || '';
+      let finalMediaType = state.mediaType || mediaType || 'image';
+      
+      // Retrieve recent messages to find the latest media with phone91 URL
+      const recentMessages = await dynamoDBService.listChatMessages(conversationId, 5);
+      for (const msg of recentMessages) {
+        if (msg.metadata?.mediaUrl && msg.metadata.mediaUrl.includes('phone91.com')) {
+          finalMediaUrl = msg.metadata.mediaUrl;
+          finalMediaType = msg.metadata.mediaType || finalMediaType;
+          console.log(`📎 Using phone91 media URL from recent messages: ${finalMediaUrl}`);
+          break;
+        }
+      }
+      
       const lowerMsg = message.toLowerCase();
       if (/(instagram|insta|ig)/i.test(lowerMsg)) {
         return await this.startPostingWorkflow(
@@ -247,8 +262,8 @@ Type "STOP" anytime to cancel the upload flow.`;
           conversationId,
           phoneNumber,
           'instagram',
-          state.mediaUrl || mediaUrl || '',
-          (state.mediaType || mediaType || 'image') as 'image' | 'video'
+          finalMediaUrl,
+          finalMediaType as 'image' | 'video'
         );
       }
 
@@ -258,8 +273,8 @@ Type "STOP" anytime to cancel the upload flow.`;
           conversationId,
           phoneNumber,
           'youtube',
-          state.mediaUrl || mediaUrl || '',
-          (state.mediaType || mediaType || 'video') as 'image' | 'video'
+          finalMediaUrl,
+          finalMediaType as 'image' | 'video'
         );
       }
 
