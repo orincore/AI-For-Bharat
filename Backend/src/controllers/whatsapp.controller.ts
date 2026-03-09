@@ -65,6 +65,10 @@ export class WhatsAppController {
       const conversationId = await this.getOrCreateConversation(userId, normalizedPhone);
 
       // Save user message
+      const metadata: any = { source: 'whatsapp', phoneNumber: normalizedPhone };
+      if (mediaUrl) metadata.mediaUrl = mediaUrl;
+      if (mediaType) metadata.mediaType = mediaType;
+      
       await dynamoDBService.createChatMessage({
         id: messageId || uuidv4(),
         conversationId,
@@ -72,7 +76,7 @@ export class WhatsAppController {
         role: 'user',
         content: message,
         createdAt: new Date().toISOString(),
-        metadata: { source: 'whatsapp', phoneNumber: normalizedPhone, mediaUrl, mediaType },
+        metadata,
       });
 
       // Process message through workflow service (handles posting workflows and normal chat)
