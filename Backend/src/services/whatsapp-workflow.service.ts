@@ -786,7 +786,10 @@ export class WhatsAppWorkflowService {
     );
     
     const parsed = JSON.parse(result);
-    return parsed.caption || parsed.answer || 'Check out this amazing content!';
+    const rawCaption = parsed.caption || parsed.answer || 'Check out this amazing content!';
+    
+    // Remove markdown formatting (asterisks, bold, italic markers)
+    return rawCaption.replace(/\*\*/g, '').replace(/\*/g, '').trim();
   }
 
   /**
