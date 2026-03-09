@@ -97,7 +97,7 @@ export class MetaService {
   private async waitForMediaProcessing(
     creationId: string,
     accessToken: string,
-    maxAttempts: number = 10,
+    maxAttempts: number = 60,
     delayMs: number = 3000
   ): Promise<void> {
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
