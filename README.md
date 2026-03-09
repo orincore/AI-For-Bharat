@@ -524,29 +524,6 @@ npm test
 
 MIT License - see LICENSE file for details
 
-## 🆘 Support
-
-For issues and questions:
-- Check documentation in `/docs` folder
-- Review [API_SETUP_GUIDE.md](API_SETUP_GUIDE.md) for configuration help
-- Open an issue on GitHub
-- Check CloudWatch logs for backend errors
-- Review browser console for frontend issues
-
-## 🎯 Roadmap
-
-- [ ] TikTok integration
-- [ ] Advanced analytics with AI insights
-- [ ] Content scheduling calendar view
-- [ ] Team collaboration features
-- [ ] Mobile app (React Native)
-- [ ] A/B testing for posts
-- [ ] Automated content workflows
-- [ ] Multi-language support
-- [ ] Voice commands for Orin AI
-
----
-
 **Built with ❤️ by the SocialOS Team**
 
 **Version**: 1.0.0  
