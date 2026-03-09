@@ -152,18 +152,16 @@ export class MSG91Service {
 
     const firstMessage = parsedMessages[0] || {};
     const messageType =
-      normalizedPayload.message_type ||
       normalizedPayload.messageType ||
       firstMessage.type ||
       normalizedPayload.contentType ||
       'text';
 
-    const textBody =
+    const textBodyRaw =
       normalizedPayload.text ||
-      normalizedPayload.content?.text ||
-      firstMessage.text?.body ||
-      firstMessage.message ||
-      '';
+      normalizedPayload.message ||
+      (firstMessage?.text?.body ? firstMessage.text.body : null) ||
+      normalizedPayload.caption;
 
     const fromNumber =
       normalizedPayload.customer_number ||
@@ -180,11 +178,6 @@ export class MSG91Service {
       normalizedPayload.request_id ||
       normalizedPayload.messageId;
 
-    if (!fromNumber || !textBody) {
-      return null;
-    }
-
-    // Extract media URL and type if present
     let mediaUrl: string | undefined;
     let mediaType: 'image' | 'video' | undefined;
 
@@ -198,7 +191,6 @@ export class MSG91Service {
       }
     }
 
-    // Check in messages array for media
     if (!mediaUrl && firstMessage.image) {
       mediaUrl = firstMessage.image.link || firstMessage.image.url;
       mediaType = 'image';
@@ -207,9 +199,19 @@ export class MSG91Service {
       mediaType = 'video';
     }
 
+    const fallbackText = mediaType ? `${mediaType === 'image' ? 'Image' : 'Video'} received` : '';
+    const finalMessageText = (textBodyRaw && textBodyRaw.trim()) || fallbackText;
+
+    if (!fromNumber || (!finalMessageText && !mediaUrl)) {
+      return null;
+    }
+
+    // Extract media URL and type if present
+    // (mediaUrl/mediaType already derived above)
+
     return {
       from: fromNumber,
-      message: textBody,
+      message: finalMessageText,
       messageType,
       messageId: messageId || normalizedPayload.ts || normalizedPayload.requestedAt || 'unknown-message-id',
       isInbound: true,
