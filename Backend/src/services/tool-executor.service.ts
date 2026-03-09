@@ -354,8 +354,43 @@ export class ToolExecutorService {
     }
 
     const account = accounts[0];
+
+    if (!account.accessToken) {
+      return JSON.stringify({ success: false, error: 'YouTube account access token missing. Please reconnect your YouTube account.' });
+    }
+
+    let accessToken = account.accessToken;
+
+    // Refresh token if expired
+    if (account.tokenExpiry && youtubeService.isTokenExpired(account.tokenExpiry)) {
+      if (!account.refreshToken) {
+        return JSON.stringify({ success: false, error: 'YouTube access token expired. Please reconnect your YouTube account.' });
+      }
+
+      try {
+        const refreshed = await youtubeService.refreshAccessToken(account.refreshToken);
+        accessToken = refreshed.access_token;
+        const newExpiry = new Date(Date.now() + (refreshed.expires_in || 3600) * 1000).toISOString();
+
+        await dynamoDBService.update(
+          TABLES.CONNECTED_ACCOUNTS,
+          { id: account.id },
+          'SET accessToken = :accessToken, tokenExpiry = :tokenExpiry, refreshToken = :refreshToken, updatedAt = :updatedAt',
+          {
+            ':accessToken': accessToken,
+            ':tokenExpiry': newExpiry,
+            ':refreshToken': refreshed.refresh_token || account.refreshToken,
+            ':updatedAt': new Date().toISOString(),
+          }
+        );
+      } catch (error: any) {
+        console.error('❌ Failed to refresh YouTube access token:', error.message);
+        return JSON.stringify({ success: false, error: 'Failed to refresh YouTube token. Please reconnect your YouTube account.' });
+      }
+    }
+
     const result = await youtubeService.uploadVideo(
-      account.accessToken,
+      accessToken,
       input.title,
       input.description,
       input.tags || [],
