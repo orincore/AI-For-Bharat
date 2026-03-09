@@ -99,7 +99,7 @@ export class WhatsAppWorkflowService {
 
     // If we're in an active workflow, continue it
     if (workflowState.type && workflowState.step) {
-      return await this.continueWorkflow(userId, conversationId, message, phoneNumber, workflowState);
+      return await this.continueWorkflow(userId, conversationId, message, phoneNumber, workflowState, mediaUrl, mediaType);
     }
 
     // Detect new posting intent
@@ -170,8 +170,24 @@ export class WhatsAppWorkflowService {
     conversationId: string,
     message: string,
     phoneNumber: string,
-    state: WorkflowState
+    state: WorkflowState,
+    mediaUrl?: string,
+    mediaType?: 'image' | 'video'
   ): Promise<string> {
+    if (state.step === 'awaiting_media') {
+      if (mediaUrl) {
+        return await this.startPostingWorkflow(
+          userId,
+          conversationId,
+          phoneNumber,
+          state.platform || 'instagram',
+          mediaUrl,
+          mediaType || 'image'
+        );
+      }
+      return '📎 I\'m ready when you send the media file for this post. Please attach the photo/video and resend.';
+    }
+
     if (state.type === 'instagram_post') {
       return await this.handleInstagramWorkflow(userId, conversationId, message, phoneNumber, state);
     } else if (state.type === 'youtube_post') {

@@ -241,4 +241,13 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       required: [],
     },
   },
+  {
+    name: 'get_youtube_channel_stats',
+    description: 'Fetch YouTube channel metrics such as subscriber count, total views, and video count for the connected channel. Use this when user asks about YouTube subscribers or channel stats.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
 ];
