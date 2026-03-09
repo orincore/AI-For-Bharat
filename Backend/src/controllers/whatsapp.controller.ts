@@ -161,7 +161,7 @@ export class WhatsAppController {
         TABLES.USERS,
         'PhoneNumberVerificationIndex',
         '#phoneNumber = :phoneNumber AND #whatsappVerified = :verified',
-        { ':phoneNumber': phoneNumber, ':verified': true },
+        { ':phoneNumber': phoneNumber, ':verified': 'true' },
         { '#phoneNumber': 'phoneNumber', '#whatsappVerified': 'whatsappVerified' }
       );
 
