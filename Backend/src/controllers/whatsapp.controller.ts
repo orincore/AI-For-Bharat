@@ -157,8 +157,9 @@ export class WhatsAppController {
    */
   private async getVerifiedUserByPhone(phoneNumber: string): Promise<any | null> {
     try {
-      const users = await dynamoDBService.query(
+      const users = await dynamoDBService.queryByIndex(
         TABLES.USERS,
+        'PhoneNumberVerificationIndex',
         '#phoneNumber = :phoneNumber AND #whatsappVerified = :verified',
         { ':phoneNumber': phoneNumber, ':verified': true },
         { '#phoneNumber': 'phoneNumber', '#whatsappVerified': 'whatsappVerified' }
