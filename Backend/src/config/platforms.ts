@@ -32,6 +32,5 @@ export const PLATFORM_CONFIG = {
     WHATSAPP_NUMBER: process.env.MSG91_WHATSAPP_NUMBER,
     BASE_URL: process.env.MSG91_BASE_URL || 'https://control.msg91.com/api/v5',
     WEBHOOK_SECRET: process.env.MSG91_WEBHOOK_SECRET,
-    WHATSAPP_ACCESS_TOKEN: process.env.MSG91_WHATSAPP_ACCESS_TOKEN,
   },
 };

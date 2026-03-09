@@ -182,10 +182,10 @@ export class MSG91Service {
     let mediaType: 'image' | 'video' | undefined;
 
     if (firstMessage.image) {
-      mediaUrl = firstMessage.image.url || firstMessage.image.link;
+      mediaUrl = firstMessage.image.link || firstMessage.image.url;
       mediaType = 'image';
     } else if (firstMessage.video) {
-      mediaUrl = firstMessage.video.url || firstMessage.video.link;
+      mediaUrl = firstMessage.video.link || firstMessage.video.url;
       mediaType = 'video';
     }
 
@@ -227,26 +227,15 @@ export class MSG91Service {
   }
 
   /**
-   * Download media from MSG91 webhook (if media URL provided)
+   * Download media from MSG91 webhook (phone91.com URLs)
    */
-  async downloadMedia(mediaUrl: string, accessToken?: string): Promise<Buffer> {
+  async downloadMedia(mediaUrl: string): Promise<Buffer> {
     try {
-      const headers: Record<string, string> = {};
-      
-      // For lookaside.fbsbx.com URLs, use Bearer token authentication
-      if (mediaUrl.includes('lookaside.fbsbx.com')) {
-        if (!accessToken) {
-          throw new Error('Access token required for lookaside media download');
-        }
-        headers['Authorization'] = `Bearer ${accessToken}`;
-      } else {
-        // For other MSG91/phone91 URLs, use authkey
-        headers['authkey'] = this.authKey;
-      }
-
       const response = await axios.get(mediaUrl, {
         responseType: 'arraybuffer',
-        headers,
+        headers: {
+          'authkey': this.authKey,
+        },
       });
 
       return Buffer.from(response.data);

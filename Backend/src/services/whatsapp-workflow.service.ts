@@ -178,20 +178,18 @@ Type "STOP" anytime to cancel the upload flow.`;
     let finalMediaUrl = mediaUrl;
     
     // Upload WhatsApp media to S3 for Instagram compatibility
-    if (mediaUrl.includes('lookaside.fbsbx.com') || mediaUrl.includes('whatsapp')) {
+    if (mediaUrl.includes('phone91.com') || mediaUrl.includes('whatsapp')) {
       try {
-        console.log(`📤 Downloading and uploading WhatsApp media to S3: ${mediaUrl}`);
+        console.log(`📤 Downloading WhatsApp media from phone91 and uploading to S3: ${mediaUrl}`);
 
-        // Download media using MSG91 service (handles authentication)
-        const whatsappToken = PLATFORM_CONFIG.MSG91.WHATSAPP_ACCESS_TOKEN;
-        const mediaBuffer = await msg91Service.downloadMedia(mediaUrl, whatsappToken);
+        // Download media using MSG91 service with authkey authentication
+        const mediaBuffer = await msg91Service.downloadMedia(mediaUrl);
         
         // Upload buffer directly to S3
         const extension = mediaType === 'image' ? 'jpg' : 'mp4';
         const contentType = mediaType === 'image' ? 'image/jpeg' : 'video/mp4';
         const key = `whatsapp/${userId}/${Date.now()}.${extension}`;
         
-        const { S3Client } = await import('@aws-sdk/client-s3');
         const { PutObjectCommand } = await import('@aws-sdk/client-s3');
         const { s3Client, S3_BUCKET, S3_BUCKET_REGION } = await import('../config/aws');
         
