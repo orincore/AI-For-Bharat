@@ -125,19 +125,24 @@ export class WhatsAppController {
   }
 
   /**
-   * Get or create a conversation for this WhatsApp user
+   * Get or create a conversation for this WhatsApp user and phone number
+   * Each phone number gets its own isolated conversation and workflow state
    */
   private async getOrCreateConversation(userId: string, phoneNumber: string): Promise<string> {
     try {
-      // Try to find existing conversation
-      const conversations = await dynamoDBService.listConversations(userId, 1);
+      // Try to find existing conversation for this specific phone number
+      const allConversations = await dynamoDBService.listConversations(userId, 50);
+      
+      const existingConversation = allConversations?.find(
+        (conv: any) => conv.metadata?.phoneNumber === phoneNumber && conv.metadata?.source === 'whatsapp'
+      );
 
-      if (conversations && conversations.length > 0) {
-        console.log(`💬 Found existing conversation: ${conversations[0].id}`);
-        return conversations[0].id;
+      if (existingConversation) {
+        console.log(`💬 Found existing conversation for ${phoneNumber}: ${existingConversation.id}`);
+        return existingConversation.id;
       }
 
-      // Create new conversation
+      // Create new conversation for this phone number
       const conversationId = uuidv4();
       const now = new Date().toISOString();
 
@@ -153,7 +158,7 @@ export class WhatsAppController {
         },
       });
 
-      console.log(`✅ Created new conversation: ${conversationId}`);
+      console.log(`✅ Created new conversation for ${phoneNumber}: ${conversationId}`);
       return conversationId;
     } catch (error: any) {
       console.error('❌ Error getting/creating conversation:', error);
