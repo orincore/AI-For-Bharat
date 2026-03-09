@@ -48,17 +48,20 @@ export class MSG91Service {
     try {
       const url = `${this.baseUrl}/whatsapp/whatsapp-outbound-message/`;
       
+      // Normalize phone number - ensure it has + prefix
+      const normalizedTo = to.startsWith('+') ? to : `+${to}`;
+      
       const payload = {
         integrated_number: this.whatsappNumber,
         content_type: 'text',
         payload: {
-          to,
+          to: normalizedTo,
           type: 'text',
           text: message,
         },
       };
 
-      console.log(`📤 Sending WhatsApp message to ${to}`);
+      console.log(`📤 Sending WhatsApp message to ${normalizedTo}`);
 
       const response = await axios.post(url, payload, {
         headers: {
@@ -127,6 +130,8 @@ export class MSG91Service {
     messageType: string;
     messageId: string;
     isInbound: boolean;
+    mediaUrl?: string;
+    mediaType?: 'image' | 'video';
   } | null {
     const direction = (payload as any).direction;
     if (direction && direction !== 'inbound') {
@@ -182,12 +187,37 @@ export class MSG91Service {
       return null;
     }
 
+    // Extract media URL and type if present
+    let mediaUrl: string | undefined;
+    let mediaType: 'image' | 'video' | undefined;
+
+    if (normalizedPayload.url) {
+      mediaUrl = normalizedPayload.url;
+      const contentType = normalizedPayload.contentType || messageType;
+      if (contentType === 'image' || /image/i.test(contentType)) {
+        mediaType = 'image';
+      } else if (contentType === 'video' || /video/i.test(contentType)) {
+        mediaType = 'video';
+      }
+    }
+
+    // Check in messages array for media
+    if (!mediaUrl && firstMessage.image) {
+      mediaUrl = firstMessage.image.link || firstMessage.image.url;
+      mediaType = 'image';
+    } else if (!mediaUrl && firstMessage.video) {
+      mediaUrl = firstMessage.video.link || firstMessage.video.url;
+      mediaType = 'video';
+    }
+
     return {
       from: fromNumber,
       message: textBody,
       messageType,
       messageId: messageId || normalizedPayload.ts || normalizedPayload.requestedAt || 'unknown-message-id',
       isInbound: true,
+      mediaUrl,
+      mediaType,
     };
   }
 

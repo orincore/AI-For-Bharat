@@ -3,6 +3,7 @@ import { msg91Service } from '../services/msg91.service';
 import { bedrockService } from '../services/bedrock.service';
 import { toolExecutorService } from '../services/tool-executor.service';
 import { dynamoDBService } from '../services/dynamodb.service';
+import { whatsappWorkflowService } from '../services/whatsapp-workflow.service';
 import { v4 as uuidv4 } from 'uuid';
 
 const TABLES = {
@@ -34,8 +35,8 @@ export class WhatsAppController {
         return res.status(200).json({ success: true, message: 'Not an inbound message' });
       }
 
-      const { from, message, messageId } = parsedMessage;
-      console.log(`💬 Processing message from ${from}: "${message}"`);
+      const { from, message, messageId, mediaUrl, mediaType } = parsedMessage;
+      console.log(`💬 Processing message from ${from}: "${message}"${mediaUrl ? ` [Media: ${mediaType}]` : ''}`);
 
       // Check if this phone number is linked to a verified user account
       const verifiedUser = await this.getVerifiedUserByPhone(from);
@@ -67,57 +68,18 @@ export class WhatsAppController {
         role: 'user',
         content: message,
         createdAt: new Date().toISOString(),
-        metadata: { source: 'whatsapp', phoneNumber: from },
+        metadata: { source: 'whatsapp', phoneNumber: from, mediaUrl, mediaType },
       });
 
-      // Get conversation history
-      const priorMessagesRaw = await dynamoDBService.listChatMessages(conversationId, 40);
-      const priorMessages = priorMessagesRaw
-        .map((msg: any) => {
-          const role: 'assistant' | 'user' = msg.role === 'assistant' ? 'assistant' : 'user';
-          return {
-            role,
-            content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-          };
-        })
-        .filter((msg: any) => Boolean(msg.content))
-        .slice(-6);
-
-      // Prepare context for Orin AI
-      const accounts = await dynamoDBService.queryByIndex(
-        TABLES.CONNECTED_ACCOUNTS,
-        'UserPlatformIndex',
-        '#userId = :userId',
-        { ':userId': userId },
-        { '#userId': 'userId' }
-      );
-
-      const context = {
-        connectedAccounts: accounts.map((acc: any) => ({
-          platform: acc.platform,
-          username: acc.platformUsername,
-          isActive: acc.isActive,
-        })),
-        capabilities: {
-          analyticsTools: ['get_instagram_analytics', 'get_youtube_analytics', 'get_all_analytics_summary'],
-          postingTools: ['post_to_instagram', 'post_to_youtube', 'post_to_multiple_platforms'],
-          utilities: ['generate_caption', 'get_connected_accounts'],
-          commentTools: ['get_instagram_comments', 'get_youtube_comments', 'get_latest_comment'],
-        },
-        channel: 'whatsapp',
-      };
-
-      // Process message through Orin AI
-      const toolExecutor = async (toolName: string, toolInput: any) => {
-        return await toolExecutorService.executeTool(toolName, toolInput, userId);
-      };
-
-      console.log('🤖 Processing message through Orin AI...');
-      const aiResponse = await bedrockService.answerQuestionWithTools(
+      // Process message through workflow service (handles posting workflows and normal chat)
+      console.log('🤖 Processing message through WhatsApp workflow service...');
+      const aiResponse = await whatsappWorkflowService.handleMessage(
+        userId,
+        conversationId,
         message,
-        context,
-        toolExecutor,
-        { priorMessages }
+        from,
+        mediaUrl,
+        mediaType
       );
 
       // Save assistant response
