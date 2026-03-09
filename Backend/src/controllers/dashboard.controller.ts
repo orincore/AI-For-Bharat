@@ -43,7 +43,7 @@ export class DashboardController {
       // Get all connected accounts
       const allConnectedAccounts = await dynamoDBService.queryByIndex(
         TABLES.CONNECTED_ACCOUNTS,
-        'UserIdIndex',
+        'UserPlatformIndex',
         '#userId = :userId',
         { ':userId': userId },
         { '#userId': 'userId' }
