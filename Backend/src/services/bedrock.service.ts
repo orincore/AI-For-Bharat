@@ -467,12 +467,21 @@ Always provide helpful, actionable insights based on the data you retrieve.`;
 
     if (options?.priorMessages?.length) {
       console.log(`📜 Loading ${options.priorMessages.length} prior messages into conversation history`);
-      for (const msg of options.priorMessages) {
+      
+      // Find first user message index to ensure conversation starts with user
+      let firstUserIndex = options.priorMessages.findIndex(msg => msg.role === 'user');
+      if (firstUserIndex === -1) firstUserIndex = 0;
+      
+      const validMessages = options.priorMessages.slice(firstUserIndex);
+      
+      for (const msg of validMessages) {
         conversationHistory.push({
           role: msg.role,
           content: [{ text: msg.content }],
         });
       }
+      
+      console.log(`✅ Loaded ${validMessages.length} messages (skipped ${firstUserIndex} leading assistant messages)`);
     } else {
       console.log(`🆕 Starting fresh conversation (no prior messages)`);
     }
