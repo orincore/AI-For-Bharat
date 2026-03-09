@@ -36,10 +36,14 @@ export class WhatsAppController {
       }
 
       const { from, message, messageId, mediaUrl, mediaType } = parsedMessage;
-      console.log(`💬 Processing message from ${from}: "${message}"${mediaUrl ? ` [Media: ${mediaType}]` : ''}`);
+      
+      // Normalize phone number to match DynamoDB format (+prefix)
+      const normalizedPhone = from.startsWith('+') ? from : `+${from}`;
+      
+      console.log(`💬 Processing message from ${normalizedPhone}: "${message}"${mediaUrl ? ` [Media: ${mediaType}]` : ''}`);
 
       // Check if this phone number is linked to a verified user account
-      const verifiedUser = await this.getVerifiedUserByPhone(from);
+      const verifiedUser = await this.getVerifiedUserByPhone(normalizedPhone);
       
       if (!verifiedUser) {
         console.log(`🚫 Unauthorized WhatsApp number: ${from}`);
@@ -55,10 +59,10 @@ export class WhatsAppController {
       }
 
       const userId = verifiedUser.id;
-      console.log(`✅ Verified user ${userId} for phone ${from}`);
+      console.log(`✅ Verified user ${userId} for phone ${normalizedPhone}`);
 
       // Get or create conversation for this user
-      const conversationId = await this.getOrCreateConversation(userId, from);
+      const conversationId = await this.getOrCreateConversation(userId, normalizedPhone);
 
       // Save user message
       await dynamoDBService.createChatMessage({
@@ -68,7 +72,7 @@ export class WhatsAppController {
         role: 'user',
         content: message,
         createdAt: new Date().toISOString(),
-        metadata: { source: 'whatsapp', phoneNumber: from, mediaUrl, mediaType },
+        metadata: { source: 'whatsapp', phoneNumber: normalizedPhone, mediaUrl, mediaType },
       });
 
       // Process message through workflow service (handles posting workflows and normal chat)
@@ -77,7 +81,7 @@ export class WhatsAppController {
         userId,
         conversationId,
         message,
-        from,
+        normalizedPhone,
         mediaUrl,
         mediaType
       );
@@ -98,7 +102,7 @@ export class WhatsAppController {
 
       // Send response back via WhatsApp
       console.log('📤 Sending AI response back to WhatsApp...');
-      await msg91Service.sendTextMessage(from, aiResponse);
+      await msg91Service.sendTextMessage(normalizedPhone, aiResponse);
 
       console.log('✅ WhatsApp message processed successfully');
       return res.status(200).json({ success: true, messageId });
