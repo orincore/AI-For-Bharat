@@ -1,9 +1,8 @@
-const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { 
-  CreateTableCommand, 
+  DynamoDBClient,
+  CreateTableCommand,
   DescribeTableCommand,
-  DynamoDBDocumentClient 
-} = require('@aws-sdk/lib-dynamodb');
+} = require('@aws-sdk/client-dynamodb');
 require('dotenv').config();
 
 const region = process.env.AWS_REGION || 'us-east-1';
@@ -11,14 +10,13 @@ const tablePrefix = process.env.DYNAMODB_TABLE_PREFIX || 'orin_';
 const tableName = `${tablePrefix}whatsapp_numbers`;
 
 const client = new DynamoDBClient({ region });
-const docClient = DynamoDBDocumentClient.from(client);
 
 async function createWhatsAppNumbersTable() {
   try {
     // Check if table already exists
     try {
       const describeCommand = new DescribeTableCommand({ TableName: tableName });
-      await docClient.send(describeCommand);
+      await client.send(describeCommand);
       console.log(`✅ Table ${tableName} already exists`);
       return;
     } catch (error) {
@@ -72,7 +70,7 @@ async function createWhatsAppNumbersTable() {
       },
     });
 
-    await docClient.send(createCommand);
+    await client.send(createCommand);
     console.log(`✅ Successfully created table: ${tableName}`);
     console.log('⏳ Waiting for table to become active...');
 
@@ -81,7 +79,7 @@ async function createWhatsAppNumbersTable() {
     while (!tableActive) {
       await new Promise(resolve => setTimeout(resolve, 2000));
       const describeCommand = new DescribeTableCommand({ TableName: tableName });
-      const response = await docClient.send(describeCommand);
+      const response = await client.send(describeCommand);
       tableActive = response.Table.TableStatus === 'ACTIVE';
       console.log(`   Table status: ${response.Table.TableStatus}`);
     }
