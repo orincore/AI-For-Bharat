@@ -53,7 +53,7 @@ export class UserController {
         TABLES.USERS,
         { id: userId },
         'SET #phoneNumber = :phoneNumber, #whatsappVerified = :verified',
-        { ':phoneNumber': cleanedNumber, ':verified': true },
+        { ':phoneNumber': cleanedNumber, ':verified': 'true' },
         { '#phoneNumber': 'phoneNumber', '#whatsappVerified': 'whatsappVerified' }
       );
 
