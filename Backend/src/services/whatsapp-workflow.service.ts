@@ -185,14 +185,28 @@ Type "STOP" anytime to cancel the upload flow.`;
         let headers: Record<string, string> | undefined;
 
         if (mediaUrl.includes('lookaside.fbsbx.com')) {
-          const metaToken = PLATFORM_CONFIG.META.ACCESS_TOKEN;
-          if (!metaToken) {
-            console.error('❌ Missing META access token for downloading lookaside media');
-            return '❌ Cannot download media right now. Please try again later.';
+          // Get user's Instagram access token from connected accounts
+          const instagramAccounts = await dynamoDBService.queryByIndex(
+            'social_media_connected_accounts',
+            'UserPlatformIndex',
+            '#userId = :userId AND #platform = :platform',
+            { ':userId': userId, ':platform': 'instagram' },
+            { '#userId': 'userId', '#platform': 'platform' }
+          );
+
+          if (!instagramAccounts || instagramAccounts.length === 0) {
+            console.error('❌ No Instagram account connected for user');
+            return '❌ Please connect your Instagram account first to post media.';
+          }
+
+          const userToken = instagramAccounts[0].accessToken;
+          if (!userToken) {
+            console.error('❌ Instagram account missing access token');
+            return '❌ Your Instagram connection needs to be refreshed. Please reconnect your account.';
           }
 
           headers = {
-            Authorization: `Bearer ${metaToken}`,
+            Authorization: `Bearer ${userToken}`,
           };
         } else if (mediaUrl.includes('phone91.com') || mediaUrl.includes('msg91')) {
           const authKey = PLATFORM_CONFIG.MSG91.AUTH_KEY;
