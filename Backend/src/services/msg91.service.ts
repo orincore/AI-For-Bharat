@@ -121,23 +121,72 @@ export class MSG91Service {
   /**
    * Parse inbound webhook payload from MSG91
    */
-  parseInboundMessage(payload: InboundWebhookPayload): {
+  parseInboundMessage(payload: InboundWebhookPayload | Record<string, any>): {
     from: string;
     message: string;
     messageType: string;
     messageId: string;
     isInbound: boolean;
   } | null {
-    // Only process inbound messages
-    if (payload.direction !== 'inbound') {
+    const direction = (payload as any).direction;
+    if (direction && direction !== 'inbound') {
+      return null;
+    }
+
+    const normalizedPayload: Record<string, any> = payload as any;
+    const rawMessages = normalizedPayload.messages;
+    let parsedMessages: any[] = [];
+    if (rawMessages) {
+      try {
+        if (typeof rawMessages === 'string') {
+          parsedMessages = JSON.parse(rawMessages);
+        } else if (Array.isArray(rawMessages)) {
+          parsedMessages = rawMessages;
+        }
+      } catch (error) {
+        console.warn('⚠️ Failed to parse MSG91 messages array:', error);
+      }
+    }
+
+    const firstMessage = parsedMessages[0] || {};
+    const messageType =
+      normalizedPayload.message_type ||
+      normalizedPayload.messageType ||
+      firstMessage.type ||
+      normalizedPayload.contentType ||
+      'text';
+
+    const textBody =
+      normalizedPayload.text ||
+      normalizedPayload.content?.text ||
+      firstMessage.text?.body ||
+      firstMessage.message ||
+      '';
+
+    const fromNumber =
+      normalizedPayload.customer_number ||
+      normalizedPayload.customerNumber ||
+      firstMessage.from ||
+      normalizedPayload.customer_number ||
+      normalizedPayload.customerNumber;
+
+    const messageId =
+      normalizedPayload.message_uuid ||
+      normalizedPayload.uuid ||
+      firstMessage.id ||
+      normalizedPayload.requestId ||
+      normalizedPayload.request_id ||
+      normalizedPayload.messageId;
+
+    if (!fromNumber || !textBody) {
       return null;
     }
 
     return {
-      from: payload.customer_number,
-      message: payload.text || payload.content?.text || '',
-      messageType: payload.message_type,
-      messageId: payload.message_uuid,
+      from: fromNumber,
+      message: textBody,
+      messageType,
+      messageId: messageId || normalizedPayload.ts || normalizedPayload.requestedAt || 'unknown-message-id',
       isInbound: true,
     };
   }
