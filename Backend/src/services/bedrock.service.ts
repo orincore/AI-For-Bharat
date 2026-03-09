@@ -295,6 +295,32 @@ ${context}
     toolExecutor: (toolName: string, toolInput: any) => Promise<string>,
     options?: { priorMessages?: Array<{ role: 'user' | 'assistant'; content: string }> }
   ): Promise<string> {
+    // Check for connected accounts query first
+    const lowerQ = question.toLowerCase();
+    const isConnectedAccountsQuery = /\b(connected|linked|active)\s+(account|accounts|platform|platforms)\b/i.test(question) ||
+                                     /\b(which|what)\s+(account|accounts|platform|platforms)\s+(are\s+)?(connected|linked|active)\b/i.test(question) ||
+                                     /\b(show|list|tell)\s+.*\b(connected|linked)\b/i.test(question);
+    
+    if (isConnectedAccountsQuery) {
+      try {
+        const result = await toolExecutor('get_connected_accounts', {});
+        const parsed = JSON.parse(result);
+        
+        if (parsed.success && parsed.accounts?.length > 0) {
+          const accountList = parsed.accounts.map((acc: any) => 
+            `• ${acc.platform.charAt(0).toUpperCase() + acc.platform.slice(1)}: @${acc.username}${acc.isActive ? ' ✅' : ' (inactive)'}`
+          ).join('\n');
+          
+          return `Here are your connected accounts:\n\n${accountList}`;
+        } else {
+          return 'You don\'t have any connected accounts yet. Connect your Instagram or YouTube accounts in the dashboard to get started!';
+        }
+      } catch (error: any) {
+        console.error('❌ Connected accounts tool error:', error);
+        return 'I had trouble fetching your connected accounts. Please try again.';
+      }
+    }
+    
     const analyticsQuery = this.detectAnalyticsQuery(question);
     if (analyticsQuery) {
       try {
