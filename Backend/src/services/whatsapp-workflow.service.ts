@@ -11,7 +11,7 @@ const TABLES = {
 
 interface WorkflowState {
   type: 'instagram_post' | 'youtube_post' | null;
-  step: 'awaiting_media' | 'awaiting_caption' | 'generating_caption' | 'awaiting_approval' | 'posting' | 'complete' | null;
+  step: 'awaiting_media' | 'awaiting_platform' | 'awaiting_caption' | 'generating_caption' | 'awaiting_approval' | 'posting' | 'complete' | null;
   mediaUrl?: string;
   mediaType?: 'image' | 'video';
   caption?: string;
@@ -97,9 +97,10 @@ export class WhatsAppWorkflowService {
       }
     }
 
+    const postingIntent = this.detectPostingIntent(message);
+
     // If we're in an active workflow, allow user to switch context when no media is provided
-    if (workflowState.type && workflowState.step) {
-      const postingIntent = this.detectPostingIntent(message);
+    if (workflowState.step) {
 
       if (
         workflowState.step === 'awaiting_media' &&
@@ -114,8 +115,6 @@ export class WhatsAppWorkflowService {
     }
 
     // Detect new posting intent
-    const postingIntent = this.detectPostingIntent(message);
-    
     if (postingIntent.detected && postingIntent.platform) {
       // Start new posting workflow
       if (!mediaUrl) {
@@ -139,6 +138,21 @@ export class WhatsAppWorkflowService {
           mediaType || 'image'
         );
       }
+    }
+
+    // If media is provided without explicit intent, ask for platform
+    if (mediaUrl) {
+      const inferredPlatform = mediaType === 'video' ? 'youtube' : 'instagram';
+      const newState: WorkflowState = {
+        type: null,
+        step: 'awaiting_platform',
+        mediaUrl,
+        mediaType: mediaType || 'image',
+      };
+      await this.updateWorkflowState(conversationId, newState);
+
+      return `📎 Got your ${mediaType || 'media'}! Where should I post it?
+Reply with "Instagram" or "YouTube" to continue.`;
     }
 
     // No workflow active, process as normal AI chat
@@ -185,6 +199,33 @@ export class WhatsAppWorkflowService {
     mediaUrl?: string,
     mediaType?: 'image' | 'video'
   ): Promise<string> {
+    if (state.step === 'awaiting_platform') {
+      const lowerMsg = message.toLowerCase();
+      if (/(instagram|insta|ig)/i.test(lowerMsg)) {
+        return await this.startPostingWorkflow(
+          userId,
+          conversationId,
+          phoneNumber,
+          'instagram',
+          state.mediaUrl || mediaUrl || '',
+          (state.mediaType || mediaType || 'image') as 'image' | 'video'
+        );
+      }
+
+      if (/(youtube|yt)/i.test(lowerMsg)) {
+        return await this.startPostingWorkflow(
+          userId,
+          conversationId,
+          phoneNumber,
+          'youtube',
+          state.mediaUrl || mediaUrl || '',
+          (state.mediaType || mediaType || 'video') as 'image' | 'video'
+        );
+      }
+
+      return '📌 Please reply with "Instagram" or "YouTube" to choose where to post this media.';
+    }
+
     if (state.step === 'awaiting_media') {
       if (mediaUrl) {
         return await this.startPostingWorkflow(
