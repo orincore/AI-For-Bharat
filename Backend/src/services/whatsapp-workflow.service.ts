@@ -110,14 +110,15 @@ export class WhatsAppWorkflowService {
 
     // If we're in an active workflow, allow user to switch context when no media is provided
     if (workflowState.step) {
-
+      // Clear workflow if user sends normal message without media or posting intent
       if (
-        workflowState.step === 'awaiting_media' &&
         !mediaUrl &&
-        !postingIntent.detected
+        !postingIntent.detected &&
+        (workflowState.step === 'awaiting_media' || workflowState.step === 'awaiting_platform')
       ) {
-        console.log('🔁 User sent a non-posting request while awaiting media. Clearing workflow.');
+        console.log('🔁 User sent a non-posting request while in workflow. Clearing workflow state.');
         await this.clearWorkflowState(conversationId);
+        // Continue to normal chat processing below
       } else {
         return await this.continueWorkflow(userId, conversationId, message, phoneNumber, workflowState, mediaUrl, mediaType);
       }
