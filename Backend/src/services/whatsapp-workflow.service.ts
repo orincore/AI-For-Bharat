@@ -150,29 +150,20 @@ export class WhatsAppWorkflowService {
       }
     }
 
-    // If media is provided without explicit intent, treat as normal chat with media context
+    // If media is provided without explicit intent, auto-trigger posting workflow
     if (mediaUrl) {
-      // Only auto-trigger posting workflow if user message suggests posting intent
-      const hasPostingKeywords = /\b(post|upload|share|publish|send this|use this)\b/i.test(message);
+      // Check which platforms are connected
+      const connectedPlatforms = await this.getConnectedPlatforms(userId);
       
-      if (hasPostingKeywords) {
-        // Check which platforms are connected
-        const connectedPlatforms = await this.getConnectedPlatforms(userId);
-        
-        const newState: WorkflowState = {
-          type: null,
-          step: 'awaiting_platform',
-          mediaUrl,
-          mediaType: mediaType || 'image',
-        };
-        await this.updateWorkflowState(conversationId, newState);
+      const newState: WorkflowState = {
+        type: null,
+        step: 'awaiting_platform',
+        mediaUrl,
+        mediaType: mediaType || 'image',
+      };
+      await this.updateWorkflowState(conversationId, newState);
 
-        return await this.showPlatformOptions(connectedPlatforms, mediaType || 'media');
-      }
-      
-      // Otherwise, process as normal chat (user just sharing media for context/discussion)
-      const mediaContext = `[User attached a ${mediaType || 'media file'}: ${mediaUrl}]`;
-      return await this.processNormalChat(userId, conversationId, `${mediaContext}\n${message}`);
+      return await this.showPlatformOptions(connectedPlatforms, mediaType || 'media');
     }
 
     // No workflow active, process as normal AI chat
