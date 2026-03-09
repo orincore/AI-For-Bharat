@@ -8,7 +8,7 @@ import { ConnectedAccount } from '../types';
 import { v4 as uuidv4 } from 'uuid';
 
 class YouTubeController {
-  async initiateConnection(req: AuthRequest, res: Response) {
+  initiateConnection = async (req: AuthRequest, res: Response) => {
     try {
       console.log('🎥 YouTube OAuth connection initiated');
       const userId = req.user?.id;
@@ -56,7 +56,7 @@ class YouTubeController {
     }
   }
 
-  async handleCallback(req: AuthRequest, res: Response) {
+  handleCallback = async (req: AuthRequest, res: Response) => {
     try {
       console.log('🎥 YouTube OAuth callback initiated');
       const { code, state: userId } = req.query;
@@ -183,7 +183,7 @@ class YouTubeController {
     }
   }
 
-  async getConnectedChannel(req: AuthRequest, res: Response) {
+  getConnectedChannel = async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -225,7 +225,7 @@ class YouTubeController {
     }
   }
 
-  async disconnectChannel(req: AuthRequest, res: Response) {
+  disconnectChannel = async (req: AuthRequest, res: Response) => {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -260,7 +260,7 @@ class YouTubeController {
     }
   }
 
-  private async fetchYouTubeChannel(accessToken: string) {
+  private fetchYouTubeChannel = async (accessToken: string) => {
     const baseUrl = 'https://www.googleapis.com/youtube/v3/channels';
 
     const requestAttempts = [
