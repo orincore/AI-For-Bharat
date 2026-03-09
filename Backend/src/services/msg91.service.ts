@@ -181,7 +181,16 @@ export class MSG91Service {
     let mediaUrl: string | undefined;
     let mediaType: 'image' | 'video' | undefined;
 
-    if (firstMessage.image) {
+    // Prefer phone91.com URL from payload over lookaside URL from messages
+    if (normalizedPayload.url && normalizedPayload.url.includes('phone91.com')) {
+      mediaUrl = normalizedPayload.url;
+      const contentType = normalizedPayload.contentType || messageType;
+      if (contentType === 'image' || /image/i.test(contentType)) {
+        mediaType = 'image';
+      } else if (contentType === 'video' || /video/i.test(contentType)) {
+        mediaType = 'video';
+      }
+    } else if (firstMessage.image) {
       mediaUrl = firstMessage.image.link || firstMessage.image.url;
       mediaType = 'image';
     } else if (firstMessage.video) {
@@ -189,6 +198,7 @@ export class MSG91Service {
       mediaType = 'video';
     }
 
+    // Fallback to payload.url if no media found yet
     if (!mediaUrl && normalizedPayload.url) {
       mediaUrl = normalizedPayload.url;
       const contentType = normalizedPayload.contentType || messageType;
