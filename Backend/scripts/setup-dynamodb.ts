@@ -1,145 +1,214 @@
-import { 
-  CreateTableCommand, 
+import {
+  CreateTableCommand,
   DynamoDBClient,
-  BillingMode 
+  BillingMode,
+  CreateTableCommandInput,
 } from '@aws-sdk/client-dynamodb';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
-dotenv.config();
+const envCandidates = [
+  path.resolve(process.cwd(), '.env'),
+  path.resolve(__dirname, '../.env'),
+  path.resolve(__dirname, '../../.env'),
+];
 
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'us-east-1' });
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break;
+  }
+}
+
+const resolvedRegion = process.env.AWS_REGION || 'us-east-1';
+const client = new DynamoDBClient({ region: resolvedRegion });
 const tablePrefix = process.env.DYNAMODB_TABLE_PREFIX || 'social_media_';
 
-const tables = [
+const tables: CreateTableCommandInput[] = [
   {
-    name: `${tablePrefix}users`,
-    schema: {
-      AttributeDefinitions: [
-        { AttributeName: 'id', AttributeType: 'S' },
-        { AttributeName: 'email', AttributeType: 'S' },
-      ],
-      KeySchema: [
-        { AttributeName: 'id', KeyType: 'HASH' },
-      ],
-      GlobalSecondaryIndexes: [
-        {
-          IndexName: 'EmailIndex',
-          KeySchema: [
-            { AttributeName: 'email', KeyType: 'HASH' },
-          ],
-          Projection: { ProjectionType: 'ALL' },
-        },
-      ],
-    },
+    TableName: `${tablePrefix}users`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'email', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'EmailIndex',
+        KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
   },
   {
-    name: `${tablePrefix}posts`,
-    schema: {
-      AttributeDefinitions: [
-        { AttributeName: 'id', AttributeType: 'S' },
-        { AttributeName: 'userId', AttributeType: 'S' },
-      ],
-      KeySchema: [
-        { AttributeName: 'id', KeyType: 'HASH' },
-      ],
-      GlobalSecondaryIndexes: [
-        {
-          IndexName: 'UserIdIndex',
-          KeySchema: [
-            { AttributeName: 'userId', KeyType: 'HASH' },
-          ],
-          Projection: { ProjectionType: 'ALL' },
-        },
-      ],
-    },
+    TableName: `${tablePrefix}posts`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserIdIndex',
+        KeySchema: [{ AttributeName: 'userId', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
   },
   {
-    name: `${tablePrefix}scheduled_posts`,
-    schema: {
-      AttributeDefinitions: [
-        { AttributeName: 'id', AttributeType: 'S' },
-        { AttributeName: 'userId', AttributeType: 'S' },
-        { AttributeName: 'scheduledTime', AttributeType: 'S' },
-      ],
-      KeySchema: [
-        { AttributeName: 'id', KeyType: 'HASH' },
-      ],
-      GlobalSecondaryIndexes: [
-        {
-          IndexName: 'UserScheduleIndex',
-          KeySchema: [
-            { AttributeName: 'userId', KeyType: 'HASH' },
-            { AttributeName: 'scheduledTime', KeyType: 'RANGE' },
-          ],
-          Projection: { ProjectionType: 'ALL' },
-        },
-      ],
-    },
+    TableName: `${tablePrefix}scheduled_posts`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'scheduledTime', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserScheduleIndex',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'scheduledTime', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
   },
   {
-    name: `${tablePrefix}analytics`,
-    schema: {
-      AttributeDefinitions: [
-        { AttributeName: 'id', AttributeType: 'S' },
-        { AttributeName: 'userId', AttributeType: 'S' },
-        { AttributeName: 'date', AttributeType: 'S' },
-      ],
-      KeySchema: [
-        { AttributeName: 'id', KeyType: 'HASH' },
-      ],
-      GlobalSecondaryIndexes: [
-        {
-          IndexName: 'UserDateIndex',
-          KeySchema: [
-            { AttributeName: 'userId', KeyType: 'HASH' },
-            { AttributeName: 'date', KeyType: 'RANGE' },
-          ],
-          Projection: { ProjectionType: 'ALL' },
-        },
-      ],
-    },
+    TableName: `${tablePrefix}analytics`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'date', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserDateIndex',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'date', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
   },
   {
-    name: `${tablePrefix}content_library`,
-    schema: {
-      AttributeDefinitions: [
-        { AttributeName: 'id', AttributeType: 'S' },
-        { AttributeName: 'userId', AttributeType: 'S' },
-      ],
-      KeySchema: [
-        { AttributeName: 'id', KeyType: 'HASH' },
-      ],
-      GlobalSecondaryIndexes: [
-        {
-          IndexName: 'UserIdIndex',
-          KeySchema: [
-            { AttributeName: 'userId', KeyType: 'HASH' },
-          ],
-          Projection: { ProjectionType: 'ALL' },
-        },
-      ],
-    },
+    TableName: `${tablePrefix}content_library`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserIdIndex',
+        KeySchema: [{ AttributeName: 'userId', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
+  },
+  {
+    TableName: `${tablePrefix}connected_accounts`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'platform', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserPlatformIndex',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'platform', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
+  },
+  {
+    TableName: `${tablePrefix}post_history`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'createdAt', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserIdIndex',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'createdAt', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
+  },
+  {
+    TableName: `${tablePrefix}chat_conversations`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'userId', AttributeType: 'S' },
+      { AttributeName: 'updatedAt', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'UserIdUpdatedAtIndex',
+        KeySchema: [
+          { AttributeName: 'userId', KeyType: 'HASH' },
+          { AttributeName: 'updatedAt', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
+  },
+  {
+    TableName: `${tablePrefix}chat_messages`,
+    AttributeDefinitions: [
+      { AttributeName: 'id', AttributeType: 'S' },
+      { AttributeName: 'conversationId', AttributeType: 'S' },
+      { AttributeName: 'createdAt', AttributeType: 'S' },
+    ],
+    KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+    GlobalSecondaryIndexes: [
+      {
+        IndexName: 'ConversationCreatedAtIndex',
+        KeySchema: [
+          { AttributeName: 'conversationId', KeyType: 'HASH' },
+          { AttributeName: 'createdAt', KeyType: 'RANGE' },
+        ],
+        Projection: { ProjectionType: 'ALL' },
+      },
+    ],
+    BillingMode: BillingMode.PAY_PER_REQUEST,
   },
 ];
 
 async function createTables() {
-  console.log('🚀 Starting DynamoDB table creation...\n');
+  console.log(`🚀 Starting DynamoDB table creation in region ${resolvedRegion}...\n`);
 
   for (const table of tables) {
     try {
-      const command = new CreateTableCommand({
-        TableName: table.name,
-        ...table.schema,
-        BillingMode: BillingMode.PAY_PER_REQUEST,
-      });
-
+      const command = new CreateTableCommand(table);
       await client.send(command);
-      console.log(`✅ Created table: ${table.name}`);
+      console.log(`✅ Created table: ${table.TableName}`);
     } catch (error: any) {
       if (error.name === 'ResourceInUseException') {
-        console.log(`⚠️  Table already exists: ${table.name}`);
+        console.log(`⚠️  Table already exists: ${table.TableName}`);
       } else {
-        console.error(`❌ Error creating table ${table.name}:`, error.message);
+        console.error(`❌ Error creating table ${table.TableName}:`, error.message);
       }
     }
   }

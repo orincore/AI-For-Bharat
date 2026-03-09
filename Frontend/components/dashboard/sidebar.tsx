@@ -1,6 +1,6 @@
 "use client"
 
-import { Folder, Calendar, Users, Mic, AtSign, MessageCircle as MessageCircleIcon, Briefcase } from "lucide-react"
+import { Folder, Calendar, Users, Mic, AtSign, MessageCircle as MessageCircleIcon, Briefcase, MessageSquare } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
@@ -28,6 +28,7 @@ const navItems = [
   { icon: Users, label: "Creators", id: "creators" },
 
   { icon: BarChart3, label: "Analytics", id: "analytics" },
+  { icon: MessageSquare, label: "WhatsApp", id: "whatsapp" },
   { icon: Settings, label: "Settings", id: "settings" },
 ]
 

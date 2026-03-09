@@ -100,13 +100,26 @@ export class MetaService {
   }
 
   // Get Instagram Media
-  async getInstagramMedia(instagramAccountId: string, limit: number = 25): Promise<any> {
+  async getInstagramMedia(instagramAccountId: string, limit: number = 25, accessToken?: string): Promise<any> {
     const url = `${this.baseUrl}/${this.version}/${instagramAccountId}/media`;
     const response = await axios.get(url, {
       params: {
         fields: 'id,caption,media_type,media_url,thumbnail_url,permalink,timestamp,like_count,comments_count',
         limit: limit,
-        access_token: this.accessToken,
+        access_token: accessToken || this.accessToken,
+      },
+    });
+    return response.data;
+  }
+
+  // Get comments for a specific Instagram media
+  async getInstagramComments(mediaId: string, limit: number = 50, accessToken?: string): Promise<any> {
+    const url = `${this.baseUrl}/${this.version}/${mediaId}/comments`;
+    const response = await axios.get(url, {
+      params: {
+        fields: 'id,text,username,timestamp,like_count',
+        limit,
+        access_token: accessToken || this.accessToken,
       },
     });
     return response.data;

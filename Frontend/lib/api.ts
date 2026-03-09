@@ -113,4 +113,13 @@ export const api = {
     });
     return response.json();
   },
+
+  async getPostHistory(token: string) {
+    const response = await fetch(`${API_BASE_URL}/posts/history`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.json();
+  },
 };

@@ -7,6 +7,7 @@ import { AIRecommendation } from "./ai-recommendation"
 import { AIInsights } from "./ai-insights"
 import { AIActivityFeed } from "./ai-activity-feed"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import {
   FileText,
   TrendingUp,
@@ -21,6 +22,7 @@ import {
   Brain,
   Zap,
   BarChart3,
+  Loader2,
 } from "lucide-react"
 import { motion } from "framer-motion"
 import {
@@ -101,7 +103,15 @@ const weeklyData = [
   { day: "Sun", engagement: 6800, reach: 26000 },
 ]
 
-const recentActivity = [
+type RecentActivity = {
+  action: string
+  platform: string
+  status: string
+  time: string
+  icon?: any
+}
+
+const recentActivity: RecentActivity[] = [
   { platform: "Instagram", icon: Instagram, action: "Reel posted", time: "2h ago", status: "Published" },
   { platform: "LinkedIn", icon: Linkedin, action: "Article scheduled", time: "4h ago", status: "Scheduled" },
   { platform: "X", icon: Twitter, action: "Thread drafted", time: "6h ago", status: "Draft" },
@@ -193,22 +203,64 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 export function DashboardOverview() {
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const userId = process.env.NEXT_PUBLIC_USER_ID || 'demo-user-123';
+  const [error, setError] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [loadingAiSummary, setLoadingAiSummary] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
+    loadAiSummary();
   }, []);
 
   const loadDashboardData = async () => {
     try {
-      const response = await api.getDashboardStats(userId);
-      if (response.success) {
-        setDashboardData(response.data);
+      const token = localStorage.getItem('auth_token');
+      if (!token) {
+        setError('Not authenticated');
+        setLoading(false);
+        return;
       }
-    } catch (error) {
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setDashboardData(data.data);
+      } else {
+        setError(data.error);
+      }
+    } catch (error: any) {
       console.error('Error loading dashboard data:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAiSummary = async () => {
+    setLoadingAiSummary(true);
+    try {
+      const token = localStorage.getItem('auth_token');
+      if (!token) return;
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/ai/summarize-analytics`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setAiSummary(data.summary);
+      }
+    } catch (error: any) {
+      console.error('Error loading AI summary:', error);
+    } finally {
+      setLoadingAiSummary(false);
     }
   };
 
@@ -267,8 +319,50 @@ export function DashboardOverview() {
     },
   ] : stats;
 
-  const displayWeeklyData = dashboardData?.weeklyData || weeklyData;
-  const displayPlatformPerformance = dashboardData?.platformPerformance || platformPerformance;
+  const displayWeeklyData = dashboardData?.weeklyData?.length > 0 ? dashboardData.weeklyData : weeklyData;
+  const displayPlatformPerformanceRaw = dashboardData?.platformPerformance?.length > 0 ? dashboardData.platformPerformance : platformPerformance;
+  const platformIconMap: Record<string, any> = {
+    instagram: Instagram,
+    linkedin: Linkedin,
+    youtube: Youtube,
+    twitter: Twitter,
+    x: Twitter,
+  };
+  const displayPlatformPerformance = displayPlatformPerformanceRaw.map((platform: any) => ({
+    ...platform,
+    icon: platform.icon || platformIconMap[platform.platform?.toLowerCase()] || Instagram,
+    color: platform.color || 'text-primary',
+  }));
+  const displayRecentActivity = dashboardData?.recentActivity?.length > 0 ? dashboardData.recentActivity : recentActivity;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!dashboardData?.hasConnectedAccount) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center max-w-md">
+          <Instagram className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-xl font-semibold mb-2">No Instagram Account Connected</h3>
+          <p className="text-muted-foreground mb-6">
+            Connect your Instagram Business account to see real-time analytics and insights.
+          </p>
+          <Button onClick={() => window.location.href = '/dashboard?tab=settings'}>
+            <Instagram className="h-4 w-4 mr-2" />
+            Connect Instagram Account
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -325,14 +419,80 @@ export function DashboardOverview() {
         ))}
       </motion.div>
 
-      {/* AI Insights Card */}
+      {/* AI-Powered Analytics Summary */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.25 }}
       >
         <Card className="glow-card relative overflow-hidden border-primary/25 bg-card transition-all duration-300 hover:border-primary/40 hover:-translate-y-1 hover:shadow-xl">
-          {/* Subtle neon background glow */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: "radial-gradient(ellipse at 20% 50%, oklch(0.72 0.19 163 / 0.06), transparent 60%), radial-gradient(ellipse at 80% 50%, oklch(0.78 0.15 195 / 0.04), transparent 60%)",
+            }}
+          />
+          <CardHeader className="relative flex flex-row items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/25">
+                <Brain className="h-4.5 w-4.5 text-primary" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-semibold text-foreground">AI Analytics Summary</CardTitle>
+                <p className="text-xs text-muted-foreground">Comprehensive insights from your connected accounts</p>
+              </div>
+            </div>
+            <Button
+              onClick={loadAiSummary}
+              disabled={loadingAiSummary}
+              size="sm"
+              variant="outline"
+              className="border-primary/30 hover:bg-primary/10"
+            >
+              {loadingAiSummary ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                  Analyzing...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-3 w-3 mr-1.5" />
+                  Refresh
+                </>
+              )}
+            </Button>
+          </CardHeader>
+          <CardContent className="relative">
+            {loadingAiSummary ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="text-center">
+                  <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2 text-primary" />
+                  <p className="text-sm text-muted-foreground">Analyzing your social media performance...</p>
+                </div>
+              </div>
+            ) : aiSummary ? (
+              <div className="prose prose-invert max-w-none">
+                <div className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                  {aiSummary}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Brain className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                <p className="text-sm text-muted-foreground">Click refresh to generate AI-powered insights</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* AI Insights Card */}
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+      >
+        <Card className="glow-card relative overflow-hidden border-primary/25 bg-card transition-all duration-300 hover:border-primary/40 hover:-translate-y-1 hover:shadow-xl">
           <div
             className="pointer-events-none absolute inset-0"
             style={{
@@ -341,11 +501,11 @@ export function DashboardOverview() {
           />
           <CardHeader className="relative flex flex-row items-center gap-2.5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/15 ring-1 ring-primary/25">
-              <Brain className="h-4.5 w-4.5 text-primary" />
+              <Zap className="h-4.5 w-4.5 text-primary" />
             </div>
             <div>
-              <CardTitle className="text-base font-semibold text-foreground">AI Insights</CardTitle>
-              <p className="text-xs text-muted-foreground">Intelligent suggestions from Orin</p>
+              <CardTitle className="text-base font-semibold text-foreground">Quick Insights</CardTitle>
+              <p className="text-xs text-muted-foreground">Key recommendations from Orin</p>
             </div>
           </CardHeader>
           <CardContent className="relative">
@@ -355,7 +515,7 @@ export function DashboardOverview() {
                   key={insight.label}
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.35 + index * 0.08 }}
+                  transition={{ delay: 0.4 + index * 0.08 }}
                   className="group/insight rounded-xl border border-border/40 bg-secondary/30 p-4 transition-all duration-200 hover:border-primary/25 hover:bg-secondary/50"
                 >
                   <div className="flex items-center gap-2 mb-2">
@@ -461,7 +621,7 @@ export function DashboardOverview() {
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-3">
-                {recentActivity.map((activity, index) => (
+                {displayRecentActivity.map((activity: RecentActivity, index: number) => (
                   <motion.div
                     key={index}
                     initial={{ opacity: 0, x: -8 }}
@@ -471,7 +631,7 @@ export function DashboardOverview() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
-                        <activity.icon className="h-4 w-4 text-primary" />
+                        <Instagram className="h-4 w-4 text-primary" />
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{activity.action}</p>
@@ -481,14 +641,14 @@ export function DashboardOverview() {
                     <div className="flex items-center gap-3">
                       <span
                         className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                          activity.status === "Published"
+                          activity.status === "published"
                             ? "bg-primary/10 text-primary"
-                            : activity.status === "Scheduled"
+                            : activity.status === "scheduled"
                               ? "bg-chart-2/10 text-chart-2"
                               : "bg-secondary text-muted-foreground"
                         }`}
                       >
-                        {activity.status}
+                        {activity.status.charAt(0).toUpperCase() + activity.status.slice(1)}
                       </span>
                       <span className="text-xs text-muted-foreground">{activity.time}</span>
                     </div>

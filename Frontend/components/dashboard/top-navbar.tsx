@@ -1,6 +1,6 @@
 "use client"
 
-import { Search, Bell, ChevronDown, Sun, Moon, Sparkles } from "lucide-react"
+import { Search, Bell, ChevronDown, Sun, Moon, Sparkles, LogOut } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -13,6 +13,8 @@ import { useTheme } from "next-themes"
 import { motion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { useEffect, useState } from "react"
+import { useAuth } from "@/contexts/AuthContext"
+import { useRouter } from "next/navigation"
 
 interface TopNavbarProps {
   sidebarCollapsed: boolean
@@ -21,10 +23,27 @@ interface TopNavbarProps {
 export function TopNavbar({ sidebarCollapsed }: TopNavbarProps) {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const { user, logout } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const handleLogout = async () => {
+    await logout()
+    router.push('/login')
+  }
+
+  const getUserInitials = () => {
+    if (!user?.name) return 'U'
+    return user.name
+      .split(' ')
+      .map(n => n[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2)
+  }
 
   return (
     <header
@@ -95,22 +114,30 @@ export function TopNavbar({ sidebarCollapsed }: TopNavbarProps) {
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-xl p-1.5 transition-all duration-200 hover:bg-secondary">
               <Avatar className="h-7 w-7 ring-1 ring-border">
-                <AvatarImage src="" alt="User avatar" />
+                <AvatarImage src={user?.profilePicture || ""} alt="User avatar" />
                 <AvatarFallback className="bg-gradient-to-br from-primary/30 to-neon-cyan/30 text-xs font-semibold text-primary">
-                  JD
+                  {getUserInitials()}
                 </AvatarFallback>
               </Avatar>
               <span className="hidden text-sm font-medium text-foreground md:inline">
-                John Doe
+                {user?.name || 'User'}
               </span>
               <ChevronDown className="h-3 w-3 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
+            <div className="px-2 py-1.5">
+              <p className="text-sm font-medium">{user?.name}</p>
+              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            </div>
+            <DropdownMenuSeparator />
             <DropdownMenuItem>Profile</DropdownMenuItem>
             <DropdownMenuItem>Billing</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>Sign out</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              Sign out
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   BarChart3,
@@ -26,28 +27,25 @@ import {
   Cell,
 } from "recharts"
 
-const metrics = [
-  { label: "Total Reach", value: "124.5K", change: "+18.3%", icon: Eye },
-  { label: "New Followers", value: "2,847", change: "+12.1%", icon: Users },
-  { label: "Avg. Engagement", value: "5.2%", change: "+0.8%", icon: TrendingUp },
-  { label: "Posts Published", value: "67", change: "+23", icon: BarChart3 },
+const defaultMetrics = [
+  { label: "Total Reach", value: "0", change: "+0%", icon: Eye },
+  { label: "New Followers", value: "0", change: "+0%", icon: Users },
+  { label: "Avg. Engagement", value: "0%", change: "+0%", icon: TrendingUp },
+  { label: "Posts Published", value: "0", change: "+0", icon: BarChart3 },
 ]
 
-const weeklyData = [
-  { day: "Mon", engagement: 3200, reach: 14000, followers: 120 },
-  { day: "Tue", engagement: 4500, reach: 18000, followers: 180 },
-  { day: "Wed", engagement: 3800, reach: 16000, followers: 140 },
-  { day: "Thu", engagement: 6200, reach: 24000, followers: 250 },
-  { day: "Fri", engagement: 4800, reach: 19000, followers: 190 },
-  { day: "Sat", engagement: 7400, reach: 28000, followers: 320 },
-  { day: "Sun", engagement: 5600, reach: 22000, followers: 210 },
+const defaultWeeklyData = [
+  { day: "Mon", engagement: 0, reach: 0, followers: 0 },
+  { day: "Tue", engagement: 0, reach: 0, followers: 0 },
+  { day: "Wed", engagement: 0, reach: 0, followers: 0 },
+  { day: "Thu", engagement: 0, reach: 0, followers: 0 },
+  { day: "Fri", engagement: 0, reach: 0, followers: 0 },
+  { day: "Sat", engagement: 0, reach: 0, followers: 0 },
+  { day: "Sun", engagement: 0, reach: 0, followers: 0 },
 ]
 
-const platformDistribution = [
-  { name: "Instagram", value: 35, color: "oklch(0.65 0.24 350)", icon: Instagram },
-  { name: "LinkedIn", value: 20, color: "oklch(0.55 0.18 250)", icon: Linkedin },
-  { name: "X", value: 15, color: "oklch(0.72 0.19 163)", icon: Twitter },
-  { name: "YouTube", value: 30, color: "oklch(0.63 0.24 20)", icon: Youtube },
+const defaultPlatformDistribution = [
+  { name: "Instagram", value: 100, color: "oklch(0.65 0.24 350)", icon: Instagram },
 ]
 
 function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; dataKey: string }>; label?: string }) {
@@ -66,6 +64,59 @@ function CustomTooltip({ active, payload, label }: { active?: boolean; payload?:
 }
 
 export function AnalyticsSection() {
+  const [analyticsData, setAnalyticsData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    loadAnalyticsData()
+  }, [])
+
+  const loadAnalyticsData = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) {
+        setLoading(false)
+        return
+      }
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/dashboard/stats`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      })
+
+      const data = await response.json()
+      if (data.success && data.data.hasConnectedAccount) {
+        setAnalyticsData(data.data)
+      }
+    } catch (error) {
+      console.error('Error loading analytics data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const metrics = analyticsData ? [
+    { label: "Total Reach", value: analyticsData.totalReach?.toLocaleString() || "0", change: "+0%", icon: Eye },
+    { label: "Followers", value: analyticsData.followersCount?.toLocaleString() || "0", change: "+0%", icon: Users },
+    { label: "Avg. Engagement", value: analyticsData.avgEngagementRate + "%", change: "+0%", icon: TrendingUp },
+    { label: "Posts Published", value: analyticsData.totalPosts?.toString() || "0", change: "+0", icon: BarChart3 },
+  ] : defaultMetrics
+
+  const weeklyData = analyticsData?.weeklyData?.length > 0 ? analyticsData.weeklyData : defaultWeeklyData
+  const platformDistribution = defaultPlatformDistribution
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading analytics...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>

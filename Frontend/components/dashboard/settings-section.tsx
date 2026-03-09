@@ -15,11 +15,18 @@ import {
   Twitter,
   Check,
   X,
+  Youtube,
+  RefreshCw,
+  Loader2,
+  MonitorPlay,
+  PlugZap,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import { motion } from "framer-motion"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import { InstagramAccounts } from "./instagram-accounts"
+import { toast } from "@/hooks/use-toast"
 
 const profileItems = [
   { label: "Display Name", value: "John Doe" },
@@ -61,6 +68,216 @@ function ToggleSwitch({
         style={{ backgroundColor: on ? "var(--primary-foreground)" : "var(--muted-foreground)" }}
       />
     </button>
+  )
+}
+
+interface YouTubeChannel {
+  channelId: string
+  title: string
+  thumbnail?: string
+  subscribers?: string
+}
+
+function YouTubeConnectionCard() {
+  const [channel, setChannel] = useState<YouTubeChannel | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [disconnecting, setDisconnecting] = useState(false)
+
+  useEffect(() => {
+    fetchChannel()
+
+    const handleMessage = (event: MessageEvent) => {
+      const allowedOrigins = [window.location.origin]
+      const backendOrigin = process.env.NEXT_PUBLIC_API_URL
+      if (backendOrigin) {
+        try {
+          allowedOrigins.push(new URL(backendOrigin).origin)
+        } catch (e) {}
+      }
+
+      if (!allowedOrigins.includes(event.origin)) return
+
+      if (event.data?.type === 'YOUTUBE_CONNECTED') {
+        const channelData = event.data.channel
+        if (channelData) {
+          toast({
+            title: 'YouTube Connected',
+            description: `${channelData.title} connected successfully.`,
+          })
+          setChannel({
+            channelId: channelData.channelId,
+            title: channelData.title,
+            thumbnail: channelData.thumbnail,
+            subscribers: channelData.subscribers,
+          })
+        }
+      }
+    }
+
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
+
+  const fetchChannel = async () => {
+    try {
+      setLoading(true)
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/youtube/channel`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (data?.success && data?.data) {
+        setChannel(data.data)
+      }
+    } catch (error) {
+      console.warn('Unable to load YouTube channel', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleConnect = async () => {
+    try {
+      const token = localStorage.getItem('auth_token')
+      if (!token) throw new Error('Not authenticated')
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/youtube/connect`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!data.success || !data.data?.authUrl) {
+        throw new Error(data.error || 'Failed to start YouTube connection')
+      }
+
+      const width = 600
+      const height = 700
+      const left = window.screen.width / 2 - width / 2
+      const top = window.screen.height / 2 - height / 2
+
+      window.open(
+        data.data.authUrl,
+        'YouTube OAuth',
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`
+      )
+    } catch (error: any) {
+      toast({
+        title: 'Unable to connect YouTube',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  const handleDisconnect = async () => {
+    try {
+      setDisconnecting(true)
+      const token = localStorage.getItem('auth_token')
+      if (!token) return
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/youtube/channel`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || 'Failed to disconnect')
+      toast({
+        title: 'YouTube disconnected',
+        description: 'Your channel was disconnected successfully.',
+      })
+      setChannel(null)
+    } catch (error: any) {
+      toast({
+        title: 'Unable to disconnect',
+        description: error.message || 'Please try again.',
+        variant: 'destructive',
+      })
+    } finally {
+      setDisconnecting(false)
+    }
+  }
+
+  return (
+    <Card className="border-border/60 bg-card">
+      <CardHeader className="flex flex-row items-center gap-2.5">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+          <Youtube className="h-4 w-4 text-red-500" />
+        </div>
+        <CardTitle className="text-base font-semibold text-foreground">YouTube Channel</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {loading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading channel details...
+          </div>
+        ) : channel ? (
+          <div className="rounded-xl border border-border/40 bg-secondary/30 p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 overflow-hidden rounded-full bg-muted">
+                {channel.thumbnail ? (
+                  <img src={channel.thumbnail} alt={channel.title} className="h-full w-full object-cover" />
+                ) : (
+                  <MonitorPlay className="m-2 h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{channel.title}</p>
+                {channel.subscribers && (
+                  <p className="text-xs text-muted-foreground">{channel.subscribers} subscribers</p>
+                )}
+                <p className="text-xs text-muted-foreground">Channel ID: {channel.channelId}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1"
+                onClick={fetchChannel}
+                disabled={loading}
+              >
+                <RefreshCw className="h-4 w-4" /> Refresh
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleDisconnect}
+                disabled={disconnecting}
+              >
+                {disconnecting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  'Disconnect'
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border/40 bg-secondary/30 p-4 text-sm text-muted-foreground">
+            <p className="mb-3 font-medium text-foreground">No YouTube channel connected</p>
+            <p>
+              Connect your YouTube channel to schedule uploads, track performance, and post directly from Orin.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button onClick={handleConnect} className="gap-2">
+                <PlugZap className="h-4 w-4" /> Connect YouTube
+              </Button>
+              <Button variant="outline" size="sm" onClick={fetchChannel}>
+                <RefreshCw className="h-4 w-4" /> Refresh status
+              </Button>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              You will be redirected to Google to authorize access. Make sure pop-ups are allowed for this site.
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   )
 }
 
@@ -216,8 +433,18 @@ export function SettingsSection() {
         </motion.div>
       </div>
 
-      {/* Danger Zone */}
+      {/* Instagram Accounts */}
       <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+        <InstagramAccounts />
+      </motion.div>
+
+      {/* YouTube Connection */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+        <YouTubeConnectionCard />
+      </motion.div>
+
+      {/* Danger Zone */}
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
         <Card className="border-destructive/20 bg-card">
           <CardHeader className="flex flex-row items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-destructive/10">

@@ -70,13 +70,13 @@ export class ContentController {
       const { userId } = req.params;
       const { platform } = req.query;
 
-      let content = await dynamoDBService.query(
+      let content = (await dynamoDBService.query(
         TABLES.CONTENT_LIBRARY,
         'userId = :userId',
         { ':userId': userId }
-      );
+      )) as ContentLibraryItem[];
 
-      if (platform) {
+      if (platform && typeof platform === 'string') {
         content = content.filter((c: ContentLibraryItem) => c.platform === platform);
       }
 
