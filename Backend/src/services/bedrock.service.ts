@@ -97,37 +97,20 @@ export class BedrockService {
     }
   ): Promise<string> {
     const tone = options?.tone || 'engaging';
-    const audience = options?.audience || 'general';
     const includeHashtags = options?.includeHashtags !== false;
     const includeEmojis = options?.includeEmojis !== false;
-    const additionalContext = options?.additionalContext || '';
 
-    const systemPrompt = `You are an expert social media content strategist specializing in ${platform}.
-Create ${tone} captions optimized for ${audience} audience that drive engagement.`;
+    const fullPrompt = `Create a short, ${tone} ${platform} caption based on: "${prompt}"
 
-    const requirements = [];
-    if (includeEmojis) requirements.push('Add relevant emojis to enhance visual appeal');
-    requirements.push('Improve storytelling and narrative flow');
-    if (includeHashtags) requirements.push('Add 5-8 trending, relevant hashtags');
-    requirements.push('Keep it natural, authentic, and engaging');
-    requirements.push(`Optimize for ${platform} best practices and character limits`);
-    requirements.push(`Tone: ${tone}`);
-    requirements.push(`Target audience: ${audience}`);
-
-    const fullPrompt = `${systemPrompt}
-
-Original Caption/Idea:
-${prompt}
-
-${additionalContext ? `Additional Context:
-${additionalContext}
-
-` : ''}Requirements:
-${requirements.map((r, i) => `${i + 1}. ${r}`).join('\n')}
-
-Generate an optimized caption following all requirements above.`;
+Rules:
+- Keep it concise (2-3 sentences max)
+- ${includeEmojis ? 'Use 2-3 relevant emojis' : 'No emojis'}
+- ${includeHashtags ? 'Add 3-5 relevant hashtags at the end' : 'No hashtags'}
+- NO explanations, NO extra commentary
+- Output ONLY the caption text itself
+- Make it natural and engaging`;
     
-    return await this.invokeWithFallback(fullPrompt, 500);
+    return await this.invokeWithFallback(fullPrompt, 200);
   }
 
   async generateVideoMetadata(
@@ -141,28 +124,19 @@ Generate an optimized caption following all requirements above.`;
     }
   ): Promise<{ title: string; description: string; tags: string[] }> {
     const tone = options?.tone || 'engaging';
-    const audience = options?.audience || 'general';
-    const includeHashtags = options?.includeHashtags !== false;
     const includeEmojis = options?.includeEmojis !== false;
-    const additionalContext = options?.additionalContext || '';
 
-    const promptTemplate = `You are an elite YouTube growth strategist and SEO expert.
+    const promptTemplate = `Generate YouTube metadata for: "${prompt}"
 
-Content idea / rough caption:
-${prompt}
+Requirements:
+- Title: Catchy, ${tone}, max 60 characters
+- Description: 2-3 short sentences, concise and clear
+- Tags: 5-8 relevant keywords
+- ${includeEmojis ? 'Use 2-3 emojis in description' : 'No emojis'}
+- NO explanations or extra text
+- Return ONLY valid JSON: {"title": "...", "description": "...", "tags": ["tag1", "tag2"]}`;
 
-${additionalContext ? `Additional context:
-${additionalContext}
-
-` : ''}Requirements:
-1. Craft a compelling, ${tone} YouTube title (max 70 characters) optimized for ${audience} viewers.
-2. Write a persuasive description (3 short paragraphs + bullet CTA) that highlights hooks, value, and next steps.
-3. ${includeHashtags ? 'Include 8-12 high-intent tags/keywords (single words or short phrases).' : 'Focus on copy quality; tags optional.'}
-4. ${includeEmojis ? 'Tastefully sprinkle relevant emojis in the description where it feels natural.' : 'Do not use emojis.'}
-5. Emphasize discoverability, storytelling, and retention tactics.
-6. Return ONLY valid JSON in the exact format: {"title": "...", "description": "...", "tags": ["tag1", "tag2"]} with double quotes.`;
-
-    const rawResponse = await this.invokeWithFallback(promptTemplate, 700);
+    const rawResponse = await this.invokeWithFallback(promptTemplate, 300);
     try {
       const parsed = JSON.parse(rawResponse);
       return {
