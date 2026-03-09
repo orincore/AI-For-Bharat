@@ -61,8 +61,10 @@ export class MetaService {
   async publishInstagramReel(
     instagramAccountId: string,
     videoUrl: string,
-    caption: string
+    caption: string,
+    accessToken?: string
   ): Promise<any> {
+    const token = accessToken || this.accessToken;
     // Step 1: Create media container for reel
     const containerUrl = `${this.baseUrl}/${this.version}/${instagramAccountId}/media`;
     const containerResponse = await axios.post(containerUrl, null, {
@@ -71,7 +73,7 @@ export class MetaService {
         video_url: videoUrl,
         caption: caption,
         share_to_feed: true,
-        access_token: this.accessToken,
+        access_token: token,
       },
     });
 
@@ -82,7 +84,7 @@ export class MetaService {
     const publishResponse = await axios.post(publishUrl, null, {
       params: {
         creation_id: creationId,
-        access_token: this.accessToken,
+        access_token: token,
       },
     });
 

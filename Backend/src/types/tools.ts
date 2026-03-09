@@ -118,6 +118,11 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
           type: 'string',
           description: 'Caption text for the Instagram post',
         },
+        mediaType: {
+          type: 'string',
+          enum: ['image', 'video'],
+          description: 'Type of media being posted. Defaults to image.',
+        },
       },
       required: ['imageUrl', 'caption'],
     },

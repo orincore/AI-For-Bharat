@@ -181,7 +181,15 @@ export class MSG91Service {
     let mediaUrl: string | undefined;
     let mediaType: 'image' | 'video' | undefined;
 
-    if (normalizedPayload.url) {
+    if (firstMessage.image) {
+      mediaUrl = firstMessage.image.url || firstMessage.image.link;
+      mediaType = 'image';
+    } else if (firstMessage.video) {
+      mediaUrl = firstMessage.video.url || firstMessage.video.link;
+      mediaType = 'video';
+    }
+
+    if (!mediaUrl && normalizedPayload.url) {
       mediaUrl = normalizedPayload.url;
       const contentType = normalizedPayload.contentType || messageType;
       if (contentType === 'image' || /image/i.test(contentType)) {
@@ -189,14 +197,6 @@ export class MSG91Service {
       } else if (contentType === 'video' || /video/i.test(contentType)) {
         mediaType = 'video';
       }
-    }
-
-    if (!mediaUrl && firstMessage.image) {
-      mediaUrl = firstMessage.image.link || firstMessage.image.url;
-      mediaType = 'image';
-    } else if (!mediaUrl && firstMessage.video) {
-      mediaUrl = firstMessage.video.link || firstMessage.video.url;
-      mediaType = 'video';
     }
 
     const fallbackText = mediaType ? `${mediaType === 'image' ? 'Image' : 'Video'} received` : '';
