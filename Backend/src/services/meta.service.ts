@@ -79,6 +79,9 @@ export class MetaService {
 
     const creationId = containerResponse.data.id;
 
+    // Wait for video processing to finish before publishing
+    await this.waitForMediaProcessing(creationId, token);
+
     // Step 2: Publish the container
     const publishUrl = `${this.baseUrl}/${this.version}/${instagramAccountId}/media_publish`;
     const publishResponse = await axios.post(publishUrl, null, {
@@ -89,6 +92,35 @@ export class MetaService {
     });
 
     return publishResponse.data;
+  }
+
+  private async waitForMediaProcessing(
+    creationId: string,
+    accessToken: string,
+    maxAttempts: number = 10,
+    delayMs: number = 3000
+  ): Promise<void> {
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const statusResponse = await axios.get(`${this.baseUrl}/${this.version}/${creationId}`, {
+        params: {
+          fields: 'status_code,status',
+          access_token: accessToken,
+        },
+      });
+
+      const statusCode = statusResponse.data.status_code;
+      if (statusCode === 'FINISHED') {
+        return;
+      }
+
+      if (statusCode === 'ERROR' || statusCode === 'EXPIRED') {
+        throw new Error(`Instagram media processing failed with status: ${statusCode}`);
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+
+    throw new Error('Timed out waiting for Instagram media processing.');
   }
 
   // Get Instagram Insights
