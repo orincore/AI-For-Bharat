@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { dynamoDBService } from '../services/dynamodb.service';
 import { TABLES } from '../config/aws';
 import { AuthRequest } from '../middleware/auth';
-import { ConnectedAccount } from '../types';
+import { ConnectedAccount, ContentLibraryItem } from '../types';
 import { youtubeService } from '../services/youtube.service';
 
 interface InstagramInsights {
@@ -12,7 +12,7 @@ interface InstagramInsights {
   totalReach: number;
   totalEngagement: number;
   weeklyData: Array<{ day: string; engagement: number; reach: number }>;
-  recentPosts: Array<{ platform: string; action: string; time: string; status: string; caption?: string }>;
+  recentPosts: Array<{ platform: string; action: string; time: string; status: string; caption?: string; timestamp?: number }>;
   profilePicture?: string;
 }
 
@@ -23,7 +23,7 @@ interface YouTubeInsights {
   totalViews: number;
   totalEngagement: number;
   weeklyData: Array<{ day: string; engagement: number; reach: number }>;
-  recentVideos: Array<{ platform: string; action: string; time: string; status: string; title?: string }>;
+  recentVideos: Array<{ platform: string; action: string; time: string; status: string; title?: string; caption?: string; timestamp?: number }>;
   profilePicture?: string;
 }
 
@@ -121,8 +121,17 @@ export class DashboardController {
             '#userId': 'userId',
           }
         );
-      } catch (error) {
-        console.warn('Dashboard analytics query failed, continuing with insights data:', error);
+      } catch (error: any) {
+        if (error.name === 'ResourceNotFoundException' || error.message?.includes('does not have the specified index')) {
+          console.warn('Dashboard analytics index missing, falling back to scan');
+          analytics = await dynamoDBService.scan(
+            TABLES.ANALYTICS,
+            'userId = :userId',
+            { ':userId': userId }
+          );
+        } else {
+          console.warn('Dashboard analytics query failed, continuing with insights data:', error);
+        }
       }
 
       const instagramAnalytics = analytics.filter((a: any) => a.platform === 'instagram');
@@ -135,11 +144,20 @@ export class DashboardController {
       const totalEngagement = (instagramInsights?.totalEngagement || 0) + (youtubeInsights?.totalEngagement || 0) || analyticsEngagement || 0;
       const avgEngagementRate = totalReach > 0 ? Number(((totalEngagement / totalReach) * 100).toFixed(1)) : 0;
 
-      // Combine weekly data from both platforms
-      const weeklyData = this.combineWeeklyData(
+      // Combine weekly data from both platforms (with analytics fallback)
+      const weeklyDataFromInsights = this.combineWeeklyData(
         instagramInsights?.weeklyData || [],
         youtubeInsights?.weeklyData || []
       );
+
+      const weeklyDataFromAnalytics = this.buildWeeklyData([
+        ...instagramAnalytics,
+        ...youtubeAnalytics,
+      ]);
+
+      const weeklyData = this.hasWeeklyDataSignal(weeklyDataFromInsights)
+        ? weeklyDataFromInsights
+        : weeklyDataFromAnalytics;
 
       const totalPostsFromDb = instagramPosts.length + youtubePosts.length;
       const totalPosts = totalPostsFromDb || (instagramInsights?.mediaCount || 0) + (youtubeInsights?.videoCount || 0);
@@ -156,14 +174,46 @@ export class DashboardController {
           caption: post.caption?.substring(0, 50) || post.title?.substring(0, 50) || '',
         }));
 
+      // Fetch content library items for additional activity context
+      let contentLibraryItems: ContentLibraryItem[] = [];
+      try {
+        contentLibraryItems = await dynamoDBService.query(
+          TABLES.CONTENT_LIBRARY,
+          'userId = :userId',
+          { ':userId': userId }
+        ) as ContentLibraryItem[];
+        contentLibraryItems = contentLibraryItems.sort((a, b) => 
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        ).slice(0, 10);
+      } catch (error) {
+        console.warn('Failed to load content library items:', error);
+      }
+
+      const libraryActivity = contentLibraryItems.map((item) => ({
+        platform: item.platform === 'youtube' ? 'YouTube' : item.platform.charAt(0).toUpperCase() + item.platform.slice(1),
+        action: item.platform === 'youtube' ? 'Video added to library' : 'Post added to library',
+        time: this.getRelativeTime(item.createdAt),
+        status: 'library',
+        caption: item.caption?.substring(0, 60) || '',
+        timestamp: new Date(item.createdAt).getTime(),
+      }));
+
       const combinedRecentActivity = [
-        ...(instagramInsights?.recentPosts || []),
-        ...(youtubeInsights?.recentVideos || [])
-      ].sort((a: any, b: any) => {
-        const timeA = this.parseRelativeTime(a.time);
-        const timeB = this.parseRelativeTime(b.time);
-        return timeA - timeB;
-      }).slice(0, 5);
+        ...(instagramInsights?.recentPosts || []).map(post => ({ ...post, timestamp: post.timestamp || this.parseRelativeTime(post.time) })),
+        ...(youtubeInsights?.recentVideos || []).map(video => ({ ...video, caption: video.caption || video.title, timestamp: video.timestamp || this.parseRelativeTime(video.time) })),
+        ...libraryActivity,
+        ...recentActivityFromPosts.map(activity => ({ ...activity, timestamp: activity.time ? this.parseRelativeTime(activity.time) : Date.now() })),
+      ]
+        .filter(activity => activity && activity.time)
+        .sort((a: any, b: any) => (b.timestamp || 0) - (a.timestamp || 0))
+        .slice(0, 8)
+        .map(activity => ({
+          platform: activity.platform,
+          action: activity.action,
+          time: activity.time,
+          status: activity.status || 'published',
+          caption: activity.caption,
+        }));
 
       const recentActivity = combinedRecentActivity.length ? combinedRecentActivity : recentActivityFromPosts;
 
@@ -354,6 +404,11 @@ export class DashboardController {
     }
 
     return last7Days;
+  }
+
+  private hasWeeklyDataSignal(weeklyData: Array<{ day: string; engagement: number; reach: number }>): boolean {
+    if (!weeklyData || weeklyData.length === 0) return false;
+    return weeklyData.some(dataPoint => (dataPoint.engagement || 0) > 0 || (dataPoint.reach || 0) > 0);
   }
 
   private async fetchYouTubeInsights(account: ConnectedAccount): Promise<YouTubeInsights> {

@@ -292,27 +292,31 @@ export function DashboardOverview() {
       ],
     },
     {
-      title: "Scheduled Posts",
-      value: dashboardData.scheduledPosts?.toString() || "0",
-      change: "5 today",
-      changeType: "neutral" as const,
-      icon: Clock,
-      description: "pending publish",
-      gradient: "from-chart-3/20 to-primary/20",
-      iconBg: "bg-chart-3/10",
+      title: "Instagram Followers",
+      value: dashboardData.activeAccounts?.instagram?.followersCount != null
+        ? dashboardData.activeAccounts.instagram.followersCount.toLocaleString()
+        : "—",
+      change: dashboardData.platformPerformance?.find((p: any) => p.platform?.toLowerCase() === 'instagram')?.growth || "—",
+      changeType: "positive" as const,
+      icon: Instagram,
+      description: "Current IG audience",
+      gradient: "from-neon-instagram/20 to-primary/20",
+      iconBg: "bg-primary/10",
       sparkline: [
         { v: 15 }, { v: 18 }, { v: 12 }, { v: 20 }, { v: 25 }, { v: 22 }, { v: 23 },
       ],
     },
     {
-      title: "AI Captions",
-      value: "847",
-      change: "+34.2%",
+      title: "YouTube Subscribers",
+      value: dashboardData.activeAccounts?.youtube?.subscriberCount != null
+        ? dashboardData.activeAccounts.youtube.subscriberCount.toLocaleString()
+        : "—",
+      change: dashboardData.platformPerformance?.find((p: any) => p.platform?.toLowerCase() === 'youtube')?.growth || "—",
       changeType: "positive" as const,
-      icon: Sparkles,
-      description: "generated this month",
-      gradient: "from-primary/20 to-chart-2/20",
-      iconBg: "bg-primary/10",
+      icon: Youtube,
+      description: "Latest channel subs",
+      gradient: "from-red-500/20 to-primary/20",
+      iconBg: "bg-red-500/10",
       sparkline: [
         { v: 30 }, { v: 42 }, { v: 55 }, { v: 60 }, { v: 72 }, { v: 78 }, { v: 85 },
       ],
