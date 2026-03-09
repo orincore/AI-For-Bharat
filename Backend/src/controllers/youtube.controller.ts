@@ -1,4 +1,5 @@
 import { Response } from 'express';
+import axios from 'axios';
 import { AuthRequest } from '../middleware/auth';
 import { youtubeService } from '../services/youtube.service';
 import { dynamoDBService } from '../services/dynamodb.service';
@@ -85,24 +86,12 @@ class YouTubeController {
       }
 
       console.log('🎥 Fetching channel info...');
-      const channelResponse = await fetch(
-        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&mine=true`,
-        {
-          headers: {
-            Authorization: `Bearer ${tokenData.access_token}`,
-          },
-        }
-      );
+      const channel = await this.fetchYouTubeChannel(tokenData.access_token);
 
-      const channelData = await channelResponse.json() as any;
-      console.log('🎥 Channel data:', { hasItems: !!channelData.items, itemCount: channelData.items?.length });
-
-      if (!channelData.items || channelData.items.length === 0) {
+      if (!channel) {
         console.error('❌ No YouTube channel found for this account');
         return res.redirect(`${process.env.FRONTEND_URL}/dashboard?error=no_youtube_channel`);
       }
-
-      const channel = channelData.items[0];
       const channelId = channel.id;
       const channelTitle = channel.snippet.title;
       const channelThumbnail = channel.snippet.thumbnails?.default?.url;
@@ -269,6 +258,44 @@ class YouTubeController {
       console.error('❌ Error disconnecting YouTube channel:', error);
       res.status(500).json({ success: false, error: error.message });
     }
+  }
+
+  private async fetchYouTubeChannel(accessToken: string) {
+    const baseUrl = 'https://www.googleapis.com/youtube/v3/channels';
+
+    const requestAttempts = [
+      { part: 'snippet,statistics', mine: true },
+      { part: 'snippet,statistics', mine: true, key: process.env.YOUTUBE_API_KEY },
+    ];
+
+    for (const params of requestAttempts) {
+      try {
+        const response = await axios.get(baseUrl, {
+          params,
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            Accept: 'application/json',
+          },
+        });
+
+        if (response.data?.items?.length) {
+          console.log('🎥 Channel data fetched successfully');
+          return response.data.items[0];
+        }
+
+        console.warn('⚠️ YouTube channel request returned no items', { params, response: response.data });
+      } catch (error: any) {
+        const errorData = error.response?.data || error.message;
+        console.error('❌ Failed to fetch YouTube channel info:', errorData);
+
+        // If unauthorized, no need to retry with additional params
+        if (error.response?.status === 401) {
+          break;
+        }
+      }
+    }
+
+    return null;
   }
 }
 

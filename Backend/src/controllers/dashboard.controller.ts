@@ -177,7 +177,7 @@ export class DashboardController {
       // Fetch content library items for additional activity context
       let contentLibraryItems: ContentLibraryItem[] = [];
       try {
-        contentLibraryItems = await dynamoDBService.query(
+        contentLibraryItems = await dynamoDBService.scan(
           TABLES.CONTENT_LIBRARY,
           'userId = :userId',
           { ':userId': userId }
