@@ -33,8 +33,9 @@ export class UserController {
       }
 
       // Check if phone number is already linked to another user
-      const existingUsers = await dynamoDBService.query(
+      const existingUsers = await dynamoDBService.queryByIndex(
         TABLES.USERS,
+        'PhoneNumberVerificationIndex',
         '#phoneNumber = :phoneNumber',
         { ':phoneNumber': cleanedNumber },
         { '#phoneNumber': 'phoneNumber' }
