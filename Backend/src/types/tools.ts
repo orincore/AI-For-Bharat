@@ -232,4 +232,13 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
       required: ['platform'],
     },
   },
+  {
+    name: 'get_instagram_profile_stats',
+    description: 'Fetch Instagram profile metrics such as followers count, following count, and media count for the connected account. Use this when user asks about follower numbers or profile stats.',
+    inputSchema: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+  },
 ];

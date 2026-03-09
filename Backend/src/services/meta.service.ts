@@ -99,6 +99,18 @@ export class MetaService {
     return response.data;
   }
 
+  // Get Instagram profile stats (followers, follows, media count)
+  async getInstagramProfile(instagramAccountId: string, accessToken?: string): Promise<any> {
+    const url = `${this.baseUrl}/${this.version}/${instagramAccountId}`;
+    const response = await axios.get(url, {
+      params: {
+        fields: 'id,username,name,profile_picture_url,followers_count,follows_count,media_count',
+        access_token: accessToken || this.accessToken,
+      },
+    });
+    return response.data;
+  }
+
   // Get Instagram Media
   async getInstagramMedia(instagramAccountId: string, limit: number = 25, accessToken?: string): Promise<any> {
     const url = `${this.baseUrl}/${this.version}/${instagramAccountId}/media`;

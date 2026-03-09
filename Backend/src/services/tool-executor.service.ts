@@ -43,6 +43,12 @@ export class ToolExecutorService {
         case 'get_connected_accounts':
           return await this.getConnectedAccounts(userId);
 
+        case 'get_instagram_profile_stats':
+          return await this.getInstagramProfileStats(userId);
+
+        case 'get_youtube_channel_stats':
+          return await this.getYoutubeChannelStats(userId);
+
         case 'get_instagram_comments':
           return await this.getInstagramComments(userId, toolInput as { mediaId: string; limit?: number; accountUsername?: string });
 
@@ -62,6 +68,88 @@ export class ToolExecutorService {
         error: error.message || 'Tool execution failed',
       });
     }
+  }
+
+  private async getInstagramProfileStats(userId: string): Promise<string> {
+    const accounts = await dynamoDBService.queryByIndex(
+      TABLES.CONNECTED_ACCOUNTS,
+      'UserPlatformIndex',
+      '#userId = :userId AND #platform = :platform',
+      { ':userId': userId, ':platform': 'instagram' },
+      { '#userId': 'userId', '#platform': 'platform' }
+    ) as ConnectedAccount[];
+
+    if (!accounts || accounts.length === 0) {
+      return JSON.stringify({ success: false, error: 'No Instagram account connected' });
+    }
+
+    const instagramAccount = accounts[0];
+    const accessToken = instagramAccount.accessToken;
+    const igAccountId = instagramAccount.platformAccountId;
+
+    if (!igAccountId) {
+      return JSON.stringify({ success: false, error: 'Instagram account ID missing. Please reconnect your account.' });
+    }
+
+    const profile = await metaService.getInstagramProfile(igAccountId, accessToken);
+
+    return JSON.stringify({
+      success: true,
+      platform: 'Instagram',
+      profile: {
+        id: profile.id,
+        username: profile.username,
+        name: profile.name,
+        profilePictureUrl: profile.profile_picture_url,
+        followers: Number(profile.followers_count ?? 0),
+        follows: Number(profile.follows_count ?? 0),
+        mediaCount: Number(profile.media_count ?? 0),
+      },
+    });
+  }
+
+  private async getYoutubeChannelStats(userId: string): Promise<string> {
+    const accounts = await dynamoDBService.queryByIndex(
+      TABLES.CONNECTED_ACCOUNTS,
+      'UserPlatformIndex',
+      '#userId = :userId AND #platform = :platform',
+      { ':userId': userId, ':platform': 'youtube' },
+      { '#userId': 'userId', '#platform': 'platform' }
+    ) as ConnectedAccount[];
+
+    if (!accounts || accounts.length === 0) {
+      return JSON.stringify({ success: false, error: 'No YouTube account connected' });
+    }
+
+    const youtubeAccount = accounts[0];
+    const channelId = youtubeAccount.platformAccountId;
+
+    if (!channelId) {
+      return JSON.stringify({ success: false, error: 'YouTube channel ID missing. Please reconnect your account.' });
+    }
+
+    const statsResponse = await youtubeService.getChannelStats(channelId);
+    const channel = statsResponse?.items?.[0];
+
+    if (!channel) {
+      return JSON.stringify({ success: false, error: 'Unable to fetch YouTube channel stats right now.' });
+    }
+
+    const statistics = channel.statistics || {};
+
+    return JSON.stringify({
+      success: true,
+      platform: 'YouTube',
+      profile: {
+        channelId,
+        title: channel.snippet?.title,
+        description: channel.snippet?.description,
+        subscribers: Number(statistics.subscriberCount ?? 0),
+        views: Number(statistics.viewCount ?? 0),
+        videos: Number(statistics.videoCount ?? 0),
+        hiddenSubscriberCount: statistics.hiddenSubscriberCount === 'true' || statistics.hiddenSubscriberCount === true,
+      },
+    });
   }
 
   private async getInstagramAnalytics(userId: string, limit: number): Promise<string> {
