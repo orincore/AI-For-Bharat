@@ -49,11 +49,8 @@ export class ToolExecutorService {
         case 'get_youtube_comments':
           return await this.getYoutubeComments(userId, toolInput as { videoId: string; limit?: number; accountUsername?: string });
 
-        case 'research':
-          return await this.research(toolInput as { question: string; context?: string });
-
         case 'get_latest_comment':
-          return await this.getLatestComment(userId, toolInput as { platform: 'instagram' | 'youtube'; lookbackPosts?: number; accountUsername?: string });
+          return await this.getLatestComment(userId, toolInput as { platform: 'instagram' | 'youtube'; lookbackPosts?: number; requestedCount?: number; accountUsername?: string });
 
         default:
           throw new Error(`Unknown tool: ${toolName}`);
@@ -411,16 +408,6 @@ export class ToolExecutorService {
       videoId: input.videoId,
       comments,
       totalComments: comments.length,
-    });
-  }
-
-  private async research(input: { question: string; context?: string }): Promise<string> {
-    const answer = await bedrockService.researchTopic(input.question, input.context);
-    return JSON.stringify({
-      success: true,
-      question: input.question,
-      answer,
-      source: 'orin_llm',
     });
   }
 

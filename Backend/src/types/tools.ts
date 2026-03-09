@@ -210,24 +210,6 @@ export const AVAILABLE_TOOLS: ToolDefinition[] = [
     },
   },
   {
-    name: 'research',
-    description: 'Use Orin AI\'s built-in knowledge to answer general questions or provide background information when no social media tool is appropriate.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        question: {
-          type: 'string',
-          description: 'The question or topic to research',
-        },
-        context: {
-          type: 'string',
-          description: 'Optional extra context to guide the research',
-        },
-      },
-      required: ['question'],
-    },
-  },
-  {
     name: 'get_latest_comment',
     description: 'Fetch the most recent audience comment from Instagram or YouTube. REQUIRED when user asks about: latest comment, last comment, recent comment, top comments, top 10 comments, second last comment, or any comment-related query without specifying a post/video ID. This tool scans recent posts to find the newest comment by timestamp.',
     inputSchema: {

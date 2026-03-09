@@ -231,6 +231,40 @@ ${context}
     return await this.invokeWithFallback(prompt, 800);
   }
 
+  private detectAnalyticsQuery(question: string): { platforms: Array<'instagram' | 'youtube'> } | null {
+    const lowerQ = question.toLowerCase();
+    const analyticsKeywords = [
+      'analytics',
+      'performance',
+      'performed',
+      'insight',
+      'insights',
+      'metric',
+      'metrics',
+      'engagement',
+      'best post',
+      'top post',
+      'which post',
+      'stats',
+      'statistics',
+      'dashboard',
+      'how are my posts',
+    ];
+
+    const isAnalyticsQuery = analyticsKeywords.some((keyword) => lowerQ.includes(keyword));
+    if (!isAnalyticsQuery) return null;
+
+    const platforms: Array<'instagram' | 'youtube'> = [];
+    if (/(instagram|insta|ig)/i.test(question)) platforms.push('instagram');
+    if (/(youtube|yt|channel|video)/i.test(question)) platforms.push('youtube');
+
+    if (platforms.length === 0) {
+      platforms.push('instagram', 'youtube');
+    }
+
+    return { platforms: Array.from(new Set(platforms)) };
+  }
+
   private detectCommentQuery(question: string): { platform?: 'instagram' | 'youtube'; type: 'latest' | 'top' | 'specific'; count?: number } | null {
     const lowerQ = question.toLowerCase();
     
@@ -261,6 +295,121 @@ ${context}
     toolExecutor: (toolName: string, toolInput: any) => Promise<string>,
     options?: { priorMessages?: Array<{ role: 'user' | 'assistant'; content: string }> }
   ): Promise<string> {
+    const analyticsQuery = this.detectAnalyticsQuery(question);
+    if (analyticsQuery) {
+      try {
+        if (analyticsQuery.platforms.length > 1) {
+          const summaryResult = await toolExecutor('get_all_analytics_summary', {});
+          const parsed = JSON.parse(summaryResult);
+
+          if (!parsed.success) {
+            return parsed.error || 'Unable to fetch analytics summary right now.';
+          }
+
+          const instagramSummary = parsed.instagram;
+          const youtubeSummary = parsed.youtube;
+          const parts: string[] = ['Here’s the latest cross-platform performance snapshot:'];
+
+          if (instagramSummary && !instagramSummary.error) {
+            parts.push(
+              `📸 Instagram — Posts analyzed: ${instagramSummary.totalPosts ?? '—'}, ` +
+                `avg engagement: ${instagramSummary.averageEngagement ?? '—'}.` +
+                (instagramSummary.topPost
+                  ? ` Top post is pulling ${instagramSummary.topPost.engagement ?? '—'} total interactions.`
+                  : '')
+            );
+          } else {
+            parts.push('📸 Instagram — Not connected yet or data unavailable.');
+          }
+
+          if (youtubeSummary && !youtubeSummary.error) {
+            parts.push(
+              `▶️ YouTube — Videos analyzed: ${youtubeSummary.totalVideos ?? '—'}, ` +
+                `avg views: ${youtubeSummary.averageViews ?? '—'}.` +
+                (youtubeSummary.topVideo
+                  ? ` Top video is sitting at ${youtubeSummary.topVideo.views ?? '—'} views.`
+                  : '')
+            );
+          } else {
+            parts.push('▶️ YouTube — Not connected yet or data unavailable.');
+          }
+
+          return parts.join('\n');
+        }
+
+        const platform = analyticsQuery.platforms[0];
+        const toolName = platform === 'instagram' ? 'get_instagram_analytics' : 'get_youtube_analytics';
+        const result = await toolExecutor(toolName, { limit: 15 });
+        const parsed = JSON.parse(result);
+
+        if (!parsed.success) {
+          return parsed.error || `Unable to fetch ${platform} analytics right now.`;
+        }
+
+        if (platform === 'instagram') {
+          const summary = parsed.summary || {};
+          const posts = parsed.posts || [];
+          const topPost = summary.topPost || posts[0];
+
+          return [
+            `📸 Instagram performance overview:`,
+            `- Posts analyzed: ${summary.totalPosts ?? posts.length ?? '—'}`,
+            `- Total engagement: ${summary.totalEngagement ?? '—'}`,
+            `- Average engagement per post: ${summary.averageEngagement ?? '—'}`,
+            topPost
+              ? `Top post: "${topPost.caption ?? 'No caption'}" with ${topPost.engagement ??
+                  (topPost.likes || 0) + (topPost.comments || 0)} interactions (${topPost.likes ?? 0} likes / ${
+                  topPost.comments ?? 0
+                } comments).`
+              : 'Top post data unavailable.',
+            posts.length
+              ? `Recent highlights: ${posts
+                  .slice(0, 3)
+                  .map(
+                    (post: any) =>
+                      `• ${new Date(post.timestamp).toLocaleDateString()} – ${
+                        post.engagement ?? post.likes + post.comments
+                      } interactions`
+                  )
+                  .join('\n')}`
+              : '',
+          ]
+            .filter(Boolean)
+            .join('\n');
+        }
+
+        const summary = parsed.summary || {};
+        const videos = parsed.videos || [];
+        const topVideo = summary.topVideo || videos[0];
+
+        return [
+          `▶️ YouTube performance overview:`,
+          `- Videos analyzed: ${summary.totalVideos ?? videos.length ?? '—'}`,
+          `- Total views: ${summary.totalViews ?? '—'}`,
+          `- Average views per video: ${summary.averageViews ?? '—'}`,
+          topVideo
+            ? `Top video: "${topVideo.title ?? 'Untitled'}" with ${topVideo.views ?? 0} views and ${
+                topVideo.likes ?? 0
+              } likes.`
+            : 'Top video data unavailable.',
+          videos.length
+            ? `Recent highlights: ${videos
+                .slice(0, 3)
+                .map(
+                  (video: any) =>
+                    `• ${new Date(video.publishedAt).toLocaleDateString()} – ${video.views ?? 0} views`
+                )
+                .join('\n')}`
+            : '',
+        ]
+          .filter(Boolean)
+          .join('\n');
+      } catch (error: any) {
+        console.error('❌ Analytics tool error:', error);
+        return 'I tried to fetch your analytics but ran into an issue. Please try again in a moment.';
+      }
+    }
+
     const commentQuery = this.detectCommentQuery(question);
     if (commentQuery?.platform) {
       console.log(`🎯 Detected comment query for ${commentQuery.platform}, forcing tool call...`);
