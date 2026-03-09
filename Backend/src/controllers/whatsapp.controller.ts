@@ -4,6 +4,7 @@ import { bedrockService } from '../services/bedrock.service';
 import { toolExecutorService } from '../services/tool-executor.service';
 import { dynamoDBService } from '../services/dynamodb.service';
 import { whatsappWorkflowService } from '../services/whatsapp-workflow.service';
+import { whatsappNumberService } from '../services/whatsapp-number.service';
 import { v4 as uuidv4 } from 'uuid';
 
 const TABLES = {
@@ -43,13 +44,13 @@ export class WhatsAppController {
       console.log(`💬 Processing message from ${normalizedPhone}: "${message}"${mediaUrl ? ` [Media: ${mediaType}]` : ''}`);
 
       // Check if this phone number is linked to a verified user account
-      const verifiedUser = await this.getVerifiedUserByPhone(normalizedPhone);
+      const userId = await whatsappNumberService.getUserIdByPhoneNumber(normalizedPhone);
       
-      if (!verifiedUser) {
+      if (!userId) {
         console.log(`🚫 Unauthorized WhatsApp number: ${from}`);
         await msg91Service.sendTextMessage(
           from,
-          '⚠️ Your WhatsApp number is not linked to an Orin AI account. Please link your number in the dashboard at https://your-app-url.com/dashboard to access your data securely.'
+          '⚠️ Your WhatsApp number is not linked to an Orin AI account. Please link your number in the dashboard to access your data securely.'
         );
         return res.status(200).json({ 
           success: false, 
@@ -58,7 +59,8 @@ export class WhatsAppController {
         });
       }
 
-      const userId = verifiedUser.id;
+      // Update last used timestamp for this number
+      await whatsappNumberService.updateLastUsed(normalizedPhone);
       console.log(`✅ Verified user ${userId} for phone ${normalizedPhone}`);
 
       // Get or create conversation for this user
@@ -119,30 +121,6 @@ export class WhatsAppController {
         error: error.message,
         note: 'Error logged but returning 200 to prevent retries'
       });
-    }
-  }
-
-  /**
-   * Get verified user by phone number
-   */
-  private async getVerifiedUserByPhone(phoneNumber: string): Promise<any | null> {
-    try {
-      const users = await dynamoDBService.queryByIndex(
-        TABLES.USERS,
-        'PhoneNumberVerificationIndex',
-        '#phoneNumber = :phoneNumber AND #whatsappVerified = :verified',
-        { ':phoneNumber': phoneNumber, ':verified': 'true' },
-        { '#phoneNumber': 'phoneNumber', '#whatsappVerified': 'whatsappVerified' }
-      );
-
-      if (users && users.length > 0) {
-        return users[0];
-      }
-
-      return null;
-    } catch (error: any) {
-      console.error('❌ Error getting verified user:', error);
-      return null;
     }
   }
 

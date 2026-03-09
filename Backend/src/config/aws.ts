@@ -31,6 +31,7 @@ export const TABLES = {
   POST_HISTORY: `${process.env.DYNAMODB_TABLE_PREFIX}post_history`,
   CHAT_CONVERSATIONS: `${process.env.DYNAMODB_TABLE_PREFIX}chat_conversations`,
   CHAT_MESSAGES: `${process.env.DYNAMODB_TABLE_PREFIX}chat_messages`,
+  WHATSAPP_NUMBERS: `${process.env.DYNAMODB_TABLE_PREFIX}whatsapp_numbers`,
 };
 
 export const S3_BUCKET = process.env.S3_BUCKET_NAME || 'social-media-content-bucket';
