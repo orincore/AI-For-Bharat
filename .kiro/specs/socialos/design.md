@@ -2,11 +2,17 @@
 
 ## Overview
 
-SocialOS is an enterprise-grade agentic AI creator operating system that enables creators and agencies to automate social media operations through natural language interfaces. The system implements a sophisticated AI agent loop (Observe → Reason → Validate → Act → Reflect) powered by Amazon Bedrock's multi-model approach, with cost-optimized routing between Titan Text models for simple tasks and Claude models for complex reasoning.
+SocialOS is an AI-powered social media management platform that enables content creators to manage their presence across multiple platforms (Instagram, YouTube, LinkedIn, Twitter/X) through an intelligent conversational interface. The system is built on AWS Bedrock (Claude 3 models) with OpenAI fallback, providing natural language command processing, automated content generation, cross-platform analytics, and intelligent scheduling.
 
-The architecture supports three primary interfaces: a Next.js dashboard for traditional management, a conversational chat UI for natural language commands, and WhatsApp integration via MSG91 Cloud API for voice-driven workflows. The system processes voice notes, images, and documents through a comprehensive media pipeline while maintaining enterprise-grade security, audit logging, and safety validation.
+The architecture consists of a Next.js 16 frontend deployed on AWS Amplify and a Node.js/Express backend with TypeScript. The system uses AWS DynamoDB for data storage, S3 for media files, and implements a sophisticated tool-calling pattern where the AI agent (Orin) can execute actions like posting content, fetching analytics, and generating captions through a unified tool executor service.
 
-Key differentiators include the account alias system for intuitive platform references, sophisticated creator-to-creator collaboration with realtime communication, agency marketplace functionality, and comprehensive safety layers with configurable confidence thresholds and human review queues.
+Key features include:
+- **Orin AI Assistant**: Conversational AI powered by AWS Bedrock with tool execution capabilities
+- **Multi-Platform Support**: Instagram, YouTube, LinkedIn, Twitter/X integration
+- **Smart Analytics**: Real-time performance tracking with AI-generated insights
+- **Content Generation**: AI-powered caption and video metadata generation
+- **Conversation Memory**: Persistent chat history with context-aware responses
+- **Connected Accounts**: OAuth-based platform authentication with token management
 
 ## Architecture
 
@@ -15,516 +21,612 @@ Key differentiators include the account alias system for intuitive platform refe
 ```mermaid
 graph TB
     subgraph "Client Layer"
-        WEB[Next.js Dashboard]
-        CHAT[Chat Interface]
-        WA[WhatsApp Client]
+        WEB[Next.js 16 Dashboard<br/>Deployed on AWS Amplify]
+        CHAT[Orin AI Chat Interface<br/>Embedded in Dashboard]
+        WHATSAPP[WhatsApp Client<br/>User's Phone]
     end
     
-    subgraph "API Gateway Layer"
-        NGINX[NGINX Load Balancer]
-        API[Express.js API Server]
+    subgraph "API Layer"
+        API[Express.js API Server<br/>Node.js + TypeScript<br/>Port 3001]
     end
     
     subgraph "Core Services"
-        AUTH[Supabase Auth]
-        ORIN[Orin AI Agent]
-        ROUTER[Task Router]
-        SAFETY[Safety Layer]
-        MEDIA[Media Pipeline]
+        AUTH[Google OAuth<br/>Passport.js]
+        ORIN[Orin AI Agent<br/>Bedrock Service]
+        TOOLS[Tool Executor Service<br/>13 Available Tools]
+        MEDIA[Media Pipeline<br/>S3 + Multer]
+        MSG91SVC[MSG91 Service<br/>WhatsApp Messaging]
     end
     
     subgraph "AI Services"
-        BEDROCK[Amazon Bedrock]
-        TITAN[Titan Text Lite/Express]
-        CLAUDE[Claude Instant/Sonnet]
+        BEDROCK[AWS Bedrock<br/>Converse API]
+        NOVA[Amazon Nova Pro v1:0<br/>Primary Model]
+        OPENAI[OpenAI Fallback<br/>GPT-4o-mini]
     end
     
-    subgraph "External APIs"
-        MSG91[MSG91 WhatsApp API]
-        XAPI[X API]
-        LINKEDIN[LinkedIn API]
-        INSTAGRAM[Instagram API]
+    subgraph "Platform APIs"
+        MSG91[MSG91 WhatsApp API<br/>Cloud API]
+        META[Meta Graph API v21.0<br/>Instagram/Facebook]
+        YOUTUBE[YouTube Data API v3]
+        LINKEDIN[LinkedIn API v2]
+        TWITTER[Twitter API v2]
     end
     
     subgraph "Data Layer"
-        SUPABASE[Supabase PostgreSQL]
-        REDIS[Redis Cache/Queue]
-        R2[Cloudflare R2 Storage]
+        DYNAMODB[AWS DynamoDB<br/>5 Tables with GSIs]
+        S3[AWS S3<br/>Media Storage + CORS]
     end
     
-    subgraph "Background Processing"
-        BULLMQ[BullMQ Workers]
-        SCHEDULER[Post Scheduler]
-        ANALYTICS[Analytics Engine]
-    end
-    
-    WEB --> NGINX
-    CHAT --> NGINX
-    WA --> MSG91
-    MSG91 --> API
-    NGINX --> API
+    WEB --> API
+    CHAT --> API
+    WHATSAPP --> MSG91
+    MSG91 -->|Webhook| API
     
     API --> AUTH
     API --> ORIN
-    ORIN --> ROUTER
-    ORIN --> SAFETY
-    ORIN --> MEDIA
+    API --> MSG91SVC
+    MSG91SVC --> MSG91
     
-    ROUTER --> BEDROCK
-    BEDROCK --> TITAN
-    BEDROCK --> CLAUDE
+    ORIN --> TOOLS
+    ORIN --> BEDROCK
+    BEDROCK --> NOVA
+    BEDROCK -.fallback.-> OPENAI
     
-    API --> XAPI
-    API --> LINKEDIN
-    API --> INSTAGRAM
+    TOOLS --> META
+    TOOLS --> YOUTUBE
+    TOOLS --> LINKEDIN
+    TOOLS --> TWITTER
     
-    API --> SUPABASE
-    API --> REDIS
-    MEDIA --> R2
-    
-    REDIS --> BULLMQ
-    BULLMQ --> SCHEDULER
-    BULLMQ --> ANALYTICS
+    API --> DYNAMODB
+    API --> S3
+    MEDIA --> S3
 ```
 
 ### Agent Loop Architecture
 
+The Orin AI agent implements a conversational tool-calling pattern powered by AWS Bedrock's Converse API:
+
 ```mermaid
 stateDiagram-v2
-    [*] --> Observe
-    Observe --> Reason: Input Processing
-    Reason --> Validate: Intent & Parameters
-    Validate --> Act: Safety Check Passed
-    Validate --> HumanReview: Safety Check Failed
-    HumanReview --> Act: Approved
-    HumanReview --> Reject: Denied
-    Act --> Reflect: Action Completed
-    Reflect --> [*]: Success
-    Reflect --> Observe: Retry Needed
-    Reject --> [*]: Terminated
+    [*] --> ReceiveMessage: User Question
+    ReceiveMessage --> LoadContext: Fetch conversation history
+    LoadContext --> InvokeBedrock: Send to Claude with tools
+    InvokeBedrock --> CheckStopReason: Analyze response
+    CheckStopReason --> ExecuteTools: stopReason = tool_use
+    CheckStopReason --> ReturnResponse: stopReason = end_turn
+    ExecuteTools --> ToolExecution: Call tool executor
+    ToolExecution --> InvokeBedrock: Send tool results back
+    ReturnResponse --> SaveMessage: Store in DynamoDB
+    SaveMessage --> [*]: Return to user
 ```
 
-### Microservices Architecture
+**Key Components:**
 
-The system employs a modular microservices approach with the following core services:
+1. **Context Loading**: Fetches last 6 messages from conversation history and connected accounts
+2. **Tool Specification**: Passes 13 available tools to Bedrock (analytics, posting, caption generation)
+3. **Tool Execution**: Delegates to ToolExecutorService which handles platform API calls
+4. **Iterative Loop**: Continues until Claude generates final response (max 5 iterations)
+5. **Conversation Persistence**: Stores all messages in DynamoDB with conversation threading
 
-1. **API Gateway Service**: NGINX-based load balancing and request routing
-2. **Authentication Service**: Supabase-powered user management and JWT validation
-3. **Orin Agent Service**: Core AI reasoning and command processing
-4. **Task Router Service**: Cost-optimized AI model selection and routing
-5. **Safety Validation Service**: Content moderation and confidence scoring
-6. **Media Processing Service**: File upload, processing, and CDN management
-7. **Social Platform Service**: Multi-platform API integration and posting
-8. **Queue Management Service**: Redis/BullMQ-based background job processing
-9. **Analytics Service**: Performance tracking and growth recommendations
-10. **Notification Service**: Realtime updates via WebSockets and external channels
+### Technology Stack
+
+The system employs a modern full-stack architecture:
+
+**Frontend:**
+- Next.js 16 (React 19) with App Router
+- TypeScript 5.7
+- Tailwind CSS 4.2 for styling
+- Radix UI for accessible components
+- Framer Motion for animations
+- Recharts for analytics visualization
+- Deployed on AWS Amplify
+
+**Backend:**
+- Node.js 18+ with Express 4.21
+- TypeScript 5.7
+- Passport.js for OAuth authentication
+- Multer + Multer-S3 for file uploads
+- Axios for HTTP requests
+- UUID for ID generation
+
+**Infrastructure:**
+- AWS DynamoDB (NoSQL database)
+- AWS S3 (media storage)
+- AWS Bedrock (AI models)
+- AWS Amplify (frontend hosting)
+
+**AI Models:**
+- Primary: AWS Bedrock Amazon Nova Pro v1:0
+- Fallback: OpenAI GPT-4o-mini
+- Cross-region routing via inference profile ARN
+
+**Platform APIs:**
+- Instagram: Meta Graph API v21.0
+- YouTube: YouTube Data API v3
+- LinkedIn: LinkedIn API v2
+- Twitter/X: Twitter API v2
 
 ## Components and Interfaces
 
 ### Core Components
 
-#### Orin AI Agent
-The central intelligence component implementing the agent loop pattern:
+#### Orin AI Agent (BedrockService)
 
-**Observe Phase**:
-- Input parsing from multiple channels (dashboard, chat, WhatsApp)
-- Context extraction from conversational history
-- Media content analysis and metadata extraction
-- User intent classification using natural language processing
-
-**Reason Phase**:
-- Command interpretation and parameter extraction
-- Account alias resolution to platform credentials
-- Scheduling logic for time-based commands
-- Multi-platform content adaptation requirements
-
-**Validate Phase**:
-- Safety layer integration for content validation
-- Platform policy compliance checking
-- User permission and quota validation
-- Confidence scoring for automated actions
-
-**Act Phase**:
-- Social media API calls with retry logic
-- Database updates and audit logging
-- Queue job creation for background processing
-- Realtime notification dispatch
-
-**Reflect Phase**:
-- Action result analysis and success validation
-- Error handling and retry decision logic
-- Learning from user feedback and corrections
-- Performance metrics collection
-
-#### Task Router
-Intelligent AI model selection based on task complexity and cost optimization:
+The central intelligence component implementing conversational AI with tool execution:
 
 ```typescript
-interface TaskRouter {
-  routeTask(task: Task, context: Context): ModelSelection;
-  getCostEstimate(task: Task, model: AIModel): CostEstimate;
-  handleFailover(failedModel: AIModel, task: Task): ModelSelection;
-}
-
-enum TaskComplexity {
-  SIMPLE = "simple",      // Titan Text Lite
-  MODERATE = "moderate",  // Titan Text Express
-  COMPLEX = "complex",    // Claude Instant
-  ADVANCED = "advanced"   // Claude Sonnet
+class BedrockService {
+  // Core AI invocation with fallback
+  private async invokeBedrock(prompt: string, maxTokens: number): Promise<string>
+  private async invokeOpenAI(prompt: string, maxTokens: number): Promise<string>
+  private async invokeWithFallback(prompt: string, maxTokens: number): Promise<string>
+  
+  // Content generation
+  async generateCaption(prompt: string, platform: string, options?: CaptionOptions): Promise<string>
+  async generateVideoMetadata(prompt: string, options?: VideoOptions): Promise<VideoMetadata>
+  
+  // Analytics and insights
+  async analyzeContent(content: string): Promise<any>
+  async summarizeAnalytics(analyticsData: any): Promise<string>
+  
+  // Conversational AI with tools
+  async answerQuestionWithTools(
+    question: string,
+    context: any,
+    toolExecutor: (toolName: string, toolInput: any) => Promise<string>,
+    options?: { priorMessages?: Array<{ role: 'user' | 'assistant'; content: string }> }
+  ): Promise<string>
 }
 ```
 
-**Routing Logic**:
-- Simple text parsing and basic commands → Titan Text Lite ($0.0001/1K tokens)
-- Content generation and scheduling → Titan Text Express ($0.0002/1K tokens)
-- Complex reasoning and safety validation → Claude Instant ($0.0008/1K tokens)
-- Advanced creative tasks and collaboration → Claude Sonnet ($0.003/1K tokens)
+**Key Features:**
+- AWS Bedrock Converse API integration with Claude 3 models
+- Automatic fallback to OpenAI if Bedrock fails
+- Tool calling pattern for executing actions (13 available tools)
+- Conversation history management (last 6 messages)
+- Query detection for analytics, comments, and profile stats
+- Iterative tool execution loop (max 5 iterations)
 
-#### Safety Layer
-Multi-tiered content validation system with configurable thresholds:
+**Tool Detection Patterns:**
+- Analytics queries: Detects keywords like "analytics", "performance", "metrics"
+- Comment queries: Detects "latest comment", "top comments", "second last comment"
+- Profile stats: Detects "followers", "subscribers", "profile stats"
+- Connected accounts: Detects "connected accounts", "linked platforms"
+
+#### Tool Executor Service
+
+Unified service for executing AI-requested actions:
 
 ```typescript
-interface SafetyLayer {
-  validateContent(content: Content): SafetyResult;
-  checkPlatformCompliance(content: Content, platform: Platform): ComplianceResult;
-  routeToHumanReview(content: Content, reason: string): ReviewTicket;
-}
-
-interface SafetyResult {
-  confidence: number;        // 0-1 confidence score
-  approved: boolean;         // Auto-approval decision
-  flags: SafetyFlag[];      // Identified concerns
-  humanReviewRequired: boolean;
+class ToolExecutorService {
+  async executeTool(toolName: string, toolInput: Record<string, any>, userId: string): Promise<string>
+  
+  // Analytics tools
+  private async getInstagramAnalytics(userId: string, limit: number): Promise<string>
+  private async getYoutubeAnalytics(userId: string, limit: number): Promise<string>
+  private async getAllAnalyticsSummary(userId: string): Promise<string>
+  private async getInstagramProfileStats(userId: string): Promise<string>
+  private async getYoutubeChannelStats(userId: string): Promise<string>
+  
+  // Posting tools
+  private async postToInstagram(userId: string, input: PostInput): Promise<string>
+  private async postToYoutube(userId: string, input: VideoInput): Promise<string>
+  private async postToMultiplePlatforms(userId: string, input: MultiPlatformInput): Promise<string>
+  
+  // Comment tools
+  private async getInstagramComments(userId: string, input: CommentInput): Promise<string>
+  private async getYoutubeComments(userId: string, input: CommentInput): Promise<string>
+  private async getLatestComment(userId: string, input: LatestCommentInput): Promise<string>
+  
+  // Utility tools
+  private async generateCaption(input: CaptionInput): Promise<string>
+  private async getConnectedAccounts(userId: string): Promise<string>
 }
 ```
 
-**Safety Thresholds**:
-- Confidence > 0.9: Auto-approve
-- Confidence 0.7-0.9: Platform-specific review
-- Confidence < 0.7: Mandatory human review
+**Available Tools (13 total):**
+1. `get_instagram_analytics` - Fetch Instagram post metrics
+2. `get_youtube_analytics` - Fetch YouTube video metrics
+3. `get_all_analytics_summary` - Cross-platform analytics summary
+4. `get_instagram_profile_stats` - Follower/following counts
+5. `get_youtube_channel_stats` - Subscriber/view counts
+6. `post_to_instagram` - Publish image/video to Instagram
+7. `post_to_youtube` - Upload video to YouTube
+8. `post_to_multiple_platforms` - Cross-post content
+9. `generate_caption` - AI caption generation
+10. `get_connected_accounts` - List connected platforms
+11. `get_instagram_comments` - Fetch post comments
+12. `get_youtube_comments` - Fetch video comments
+13. `get_latest_comment` - Find most recent comment across posts
 
-#### Media Pipeline
-Comprehensive media processing and storage system:
+#### DynamoDB Service
+
+Data access layer for all database operations:
 
 ```typescript
-interface MediaPipeline {
-  uploadMedia(file: File, metadata: MediaMetadata): Promise<MediaAsset>;
-  processMedia(asset: MediaAsset): Promise<ProcessedMedia>;
-  generateSignedUrl(assetId: string, expiration: number): Promise<string>;
-  optimizeForPlatform(media: MediaAsset, platform: Platform): Promise<OptimizedMedia>;
+class DynamoDBService {
+  // Basic CRUD operations
+  async put(tableName: string, item: any): Promise<void>
+  async get(tableName: string, key: any): Promise<any>
+  async query(tableName: string, ...): Promise<any[]>
+  async queryByIndex(tableName: string, indexName: string, ...): Promise<any[]>
+  async update(tableName: string, key: any, ...): Promise<any>
+  async delete(tableName: string, key: any): Promise<void>
+  
+  // Conversation management
+  async createConversation(conversation: Conversation): Promise<Conversation>
+  async getConversation(conversationId: string): Promise<Conversation>
+  async listConversations(userId: string, limit: number): Promise<Conversation[]>
+  async updateConversationTimestamp(conversationId: string, updatedAt: string): Promise<any>
+  
+  // Message management
+  async createChatMessage(message: ChatMessage): Promise<ChatMessage>
+  async listChatMessages(conversationId: string, limit: number): Promise<ChatMessage[]>
+  
+  // Post history
+  async logPostHistory(entry: PostHistory): Promise<PostHistory>
+  async listPostHistory(userId: string, limit: number): Promise<PostHistory[]>
 }
 ```
 
-**Processing Capabilities**:
-- Image optimization (WebP conversion, compression, resizing)
-- Video transcoding (MP4 standardization, compression)
-- Audio transcription for voice notes
-- Metadata extraction and content analysis
-- Platform-specific format adaptation
+#### Platform Services
+
+Individual services for each social media platform:
+
+**YouTube Service:**
+```typescript
+class YouTubeService {
+  async exchangeCodeForTokens(code: string, redirectUri: string): Promise<TokenResponse>
+  async refreshAccessToken(refreshToken: string): Promise<TokenResponse>
+  isTokenExpired(tokenExpiry: string): boolean
+  async uploadVideo(accessToken: string, title: string, description: string, tags: string[], videoUrl: string): Promise<any>
+  async getChannelStats(channelId: string): Promise<any>
+  async listChannelVideos(channelId: string, maxResults: number): Promise<any>
+  async getVideoComments(videoId: string, maxResults: number): Promise<any>
+}
+```
+
+**Meta Service (Instagram):**
+```typescript
+class MetaService {
+  async getInstagramProfile(igAccountId: string, accessToken: string): Promise<any>
+  async getInstagramMedia(igAccountId: string, limit: number, accessToken: string): Promise<any>
+  async publishInstagramImage(igAccountId: string, imageUrl: string, caption: string, accessToken: string): Promise<any>
+  async publishInstagramReel(igAccountId: string, videoUrl: string, caption: string, accessToken: string): Promise<any>
+  async getInstagramComments(mediaId: string, limit: number, accessToken: string): Promise<any>
+}
+```
 
 ### Interface Specifications
 
-#### WhatsApp Integration
-MSG91 WhatsApp Cloud API integration with conversational state management:
+#### REST API Endpoints
 
-```typescript
-interface WhatsAppHandler {
-  processIncomingMessage(webhook: WhatsAppWebhook): Promise<void>;
-  sendMessage(userId: string, message: WhatsAppMessage): Promise<void>;
-  handleVoiceNote(audioFile: Buffer): Promise<TranscriptionResult>;
-  maintainConversationState(userId: string, context: ConversationContext): void;
-}
-
-interface ConversationContext {
-  userId: string;
-  sessionId: string;
-  messageHistory: Message[];
-  currentIntent: Intent | null;
-  pendingActions: PendingAction[];
-  lastActivity: Date;
-}
+**Authentication:**
+```
+POST   /api/auth/google              # Initiate Google OAuth
+GET    /api/auth/google/callback     # OAuth callback
+POST   /api/auth/logout              # Logout user
+GET    /api/auth/me                  # Get current user
 ```
 
-**Voice Workflow**:
-1. Voice note received via WhatsApp webhook
-2. Audio file downloaded and processed through speech-to-text
-3. Transcribed text processed through Orin agent loop
-4. Response generated and sent back via WhatsApp
-5. Conversational context maintained for follow-up interactions
-
-#### Social Platform APIs
-Unified interface for multi-platform social media operations:
-
-```typescript
-interface SocialPlatformService {
-  authenticateUser(platform: Platform, credentials: OAuthCredentials): Promise<AuthResult>;
-  postContent(platform: Platform, content: PostContent): Promise<PostResult>;
-  schedulePost(platform: Platform, content: PostContent, scheduledTime: Date): Promise<ScheduleResult>;
-  getEngagementMetrics(platform: Platform, postId: string): Promise<EngagementMetrics>;
-}
-
-interface PostContent {
-  text?: string;
-  media?: MediaAsset[];
-  hashtags?: string[];
-  mentions?: string[];
-  platformSpecific?: Record<string, any>;
-}
+**AI Operations:**
+```
+POST   /api/ai/generate-caption      # Generate AI caption
+POST   /api/ai/analyze               # Analyze content
+GET    /api/ai/recommendations/:userId  # Get AI recommendations
+GET    /api/ai/summarize-analytics   # AI analytics summary (authenticated)
+POST   /api/ai/ask                   # Chat with Orin AI (authenticated)
+GET    /api/ai/conversation          # Get conversation history (authenticated)
 ```
 
-**Platform-Specific Adaptations**:
-- **X (Twitter)**: Character limits, thread handling, media constraints
-- **LinkedIn**: Professional tone validation, article vs. post format
-- **Instagram**: Image-first content, story vs. feed posting, hashtag optimization
-
-#### Account Alias System
-Natural language mapping for social media accounts:
-
-```typescript
-interface AccountAliasService {
-  createAlias(userId: string, alias: string, platformAccount: PlatformAccount): Promise<void>;
-  resolveAlias(userId: string, alias: string): Promise<PlatformAccount>;
-  listAliases(userId: string): Promise<AccountAlias[]>;
-  validateAliasUniqueness(userId: string, alias: string): Promise<boolean>;
-}
-
-interface AccountAlias {
-  id: string;
-  userId: string;
-  alias: string;           // e.g., "personal X", "main Instagram"
-  platform: Platform;
-  accountId: string;
-  displayName: string;
-  isActive: boolean;
-}
+**Instagram:**
 ```
+GET    /api/instagram/profile        # Get profile stats
+GET    /api/instagram/posts          # Get recent posts
+GET    /api/instagram/comments/:postId  # Get post comments
+POST   /api/instagram/connect        # Connect account
+```
+
+**YouTube:**
+```
+POST   /api/youtube/upload           # Upload video
+GET    /api/youtube/channel          # Get channel stats
+GET    /api/youtube/videos           # Get channel videos
+GET    /api/youtube/comments/:videoId  # Get video comments
+POST   /api/youtube/connect          # Connect account
+```
+
+**Posts:**
+```
+POST   /api/posts                    # Create new post
+GET    /api/posts/:id                # Get post by ID
+PUT    /api/posts/:id                # Update post
+DELETE /api/posts/:id                # Delete post
+POST   /api/posts/:id/publish        # Publish scheduled post
+```
+
+**Analytics:**
+```
+GET    /api/analytics/instagram      # Instagram analytics
+GET    /api/analytics/youtube        # YouTube analytics
+GET    /api/analytics/summary        # Cross-platform summary
+POST   /api/analytics/sync           # Sync from platforms
+```
+
+**Dashboard:**
+```
+GET    /api/dashboard/overview       # Dashboard overview data
+GET    /api/dashboard/recent-activity  # Recent activity feed
+```
+
+**Users:**
+```
+GET    /api/users/:id                # Get user profile
+PUT    /api/users/:id                # Update user profile
+GET    /api/users/:id/connected-accounts  # Get connected accounts
+```
+
+#### Frontend Routes (Next.js App Router)
+
+```
+/                                    # Landing page (redirects to /dashboard or /login)
+/login                               # Authentication page
+/dashboard                           # Main dashboard
+/dashboard?section=create            # Create post section
+/dashboard?section=orin              # Orin AI chat
+/dashboard?section=analytics         # Analytics section
+/dashboard?section=library           # Content library
+/dashboard?section=schedule          # Schedule posts
+/dashboard?section=whatsapp          # WhatsApp settings
+/dashboard?section=settings          # Settings
+/auth/callback                       # OAuth callback handler
+```
+
+#### WhatsApp Integration (MSG91)
+
+**Architecture:**
+- MSG91 WhatsApp Cloud API for messaging
+- Webhook endpoint receives inbound messages
+- Automatic user creation by phone number
+- Full Orin AI capabilities via WhatsApp
+- Conversation memory with persistent history
+
+**Message Flow:**
+```
+User sends WhatsApp message
+    ↓
+MSG91 receives message
+    ↓
+MSG91 webhook → POST /webhooks/msg91/whatsapp
+    ↓
+WhatsApp Controller:
+  - Parse message payload
+  - Get/create user by phone number (format: whatsapp_<number>@orin.ai)
+  - Get/create conversation thread
+  - Load last 6 messages for context
+  - Process through Orin AI with tool execution
+  - Save user message and AI response
+  - Send response via MSG91 API
+    ↓
+User receives AI response on WhatsApp
+```
+
+**Security:**
+- Users must link WhatsApp number in dashboard before accessing data
+- Phone number verification prevents unauthorized access
+- One phone number per account
+- Unverified numbers receive link instruction message
+
+**Webhook Endpoints:**
+```
+POST   /webhooks/msg91/whatsapp      # Inbound message webhook
+GET    /webhooks/msg91/whatsapp/health  # Health check
+```
+
+**User Management:**
+```
+POST   /api/user/whatsapp/link       # Link WhatsApp number (authenticated)
+DELETE /api/user/whatsapp/unlink     # Unlink WhatsApp number (authenticated)
+GET    /api/user/whatsapp/status     # Check WhatsApp status (authenticated)
+```
+
+**Supported Features via WhatsApp:**
+- Analytics queries ("Show me my Instagram analytics")
+- Comment management ("What was the last comment?")
+- Content generation ("Generate a caption")
+- General research questions
+- All 13 AI tools available
+
+**Configuration:**
+```env
+MSG91_AUTH_KEY=your_auth_key
+MSG91_WHATSAPP_NUMBER=15558335359
+MSG91_BASE_URL=https://control.msg91.com/api/v5
+```
+
+#### Conversation Management
+
+**Chat Interface:**
+- Persistent conversation threads stored in DynamoDB
+- Each conversation has unique ID and title
+- Messages stored with role (user/assistant), content, and timestamp
+- Conversation history loaded (last 6 messages) for context
+- Automatic conversation creation on first message
+- Conversation list sorted by last updated timestamp
+
+**Message Flow:**
+1. User sends question via `/api/ai/ask`
+2. System loads or creates conversation
+3. Fetches last 6 messages for context
+4. Loads connected accounts and post history
+5. Invokes Bedrock with tools and conversation history
+6. Executes any requested tools
+7. Stores user message and AI response
+8. Updates conversation timestamp
+9. Returns response with conversation ID
 
 ## Data Models
 
-### Core Entity Relationships
+### DynamoDB Tables
 
-```mermaid
-erDiagram
-    User ||--o{ AccountAlias : owns
-    User ||--o{ Post : creates
-    User ||--o{ Campaign : participates
-    User ||--o{ Collaboration : initiates
-    
-    AccountAlias ||--o{ Post : publishes_to
-    AccountAlias }o--|| Platform : belongs_to
-    
-    Post ||--o{ MediaAsset : contains
-    Post ||--o{ EngagementMetric : generates
-    Post }o--|| SafetyValidation : requires
-    
-    Campaign ||--o{ CampaignPost : includes
-    Campaign }o--|| Agency : managed_by
-    
-    Collaboration ||--o{ CollaborationMessage : contains
-    Collaboration }o--|| User : involves
-    
-    MediaAsset }o--|| CloudflareR2 : stored_in
-    
-    AuditLog }o--|| User : tracks
-    AuditLog }o--|| Post : records
+The system uses AWS DynamoDB with the following tables (prefix: `social_media_`):
+
+#### 1. connected_accounts
+
+Stores OAuth credentials and metadata for connected social media accounts.
+
+```typescript
+interface ConnectedAccount {
+  id: string                    // Partition key (UUID)
+  userId: string                // GSI: UserPlatformIndex
+  platform: 'instagram' | 'youtube' | 'linkedin' | 'twitter'  // GSI: UserPlatformIndex
+  platformAccountId: string     // Platform-specific account ID
+  platformUsername: string      // Display username
+  accessToken: string           // OAuth access token (encrypted)
+  refreshToken?: string         // OAuth refresh token (encrypted)
+  tokenExpiry?: string          // Token expiration timestamp
+  isActive: boolean             // Account status
+  metadata?: Record<string, any>  // Platform-specific metadata
+  createdAt: string             // ISO timestamp
+  updatedAt: string             // ISO timestamp
+}
+
+// Global Secondary Index
+UserPlatformIndex: userId (PK) + platform (SK)
 ```
 
-### Database Schema
+#### 2. chat_conversations
 
-#### Users and Authentication
-```sql
--- Managed by Supabase Auth
-CREATE TABLE profiles (
-  id UUID REFERENCES auth.users(id) PRIMARY KEY,
-  email TEXT UNIQUE NOT NULL,
-  full_name TEXT,
-  avatar_url TEXT,
-  user_type user_type_enum NOT NULL DEFAULT 'creator',
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+Stores conversation threads for Orin AI chat interface.
 
-CREATE TYPE user_type_enum AS ENUM ('creator', 'agency', 'admin');
+```typescript
+interface Conversation {
+  id: string                    // Partition key (UUID)
+  userId: string                // GSI: UserIdUpdatedAtIndex
+  title: string                 // Conversation title (first 60 chars of first message)
+  createdAt: string             // ISO timestamp
+  updatedAt: string             // ISO timestamp, GSI: UserIdUpdatedAtIndex
+  metadata?: Record<string, any>  // Additional conversation data
+}
+
+// Global Secondary Index
+UserIdUpdatedAtIndex: userId (PK) + updatedAt (SK)
 ```
 
-#### Account Management
-```sql
-CREATE TABLE account_aliases (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  alias TEXT NOT NULL,
-  platform platform_enum NOT NULL,
-  platform_account_id TEXT NOT NULL,
-  platform_username TEXT,
-  access_token TEXT ENCRYPTED,
-  refresh_token TEXT ENCRYPTED,
-  token_expires_at TIMESTAMPTZ,
-  is_active BOOLEAN DEFAULT true,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, alias)
-);
+#### 3. chat_messages
 
-CREATE TYPE platform_enum AS ENUM ('x', 'linkedin', 'instagram');
+Stores individual messages within conversations.
+
+```typescript
+interface ChatMessage {
+  id: string                    // Partition key (UUID)
+  conversationId: string        // GSI: ConversationCreatedAtIndex
+  userId: string                // Message owner
+  role: 'user' | 'assistant' | 'system'  // Message role
+  content: string               // Message text
+  createdAt: string             // ISO timestamp, GSI: ConversationCreatedAtIndex
+  metadata?: {
+    toolCalls?: ToolCall[]      // Tools executed during this message
+    reasoning?: string          // AI reasoning process
+  }
+}
+
+// Global Secondary Index
+ConversationCreatedAtIndex: conversationId (PK) + createdAt (SK)
 ```
 
-#### Content and Media
-```sql
-CREATE TABLE posts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  account_alias_id UUID REFERENCES account_aliases(id),
-  content TEXT NOT NULL,
-  platform_post_id TEXT,
-  status post_status_enum DEFAULT 'draft',
-  scheduled_for TIMESTAMPTZ,
-  published_at TIMESTAMPTZ,
-  safety_validation_id UUID REFERENCES safety_validations(id),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+#### 4. post_history
 
-CREATE TYPE post_status_enum AS ENUM ('draft', 'scheduled', 'published', 'failed', 'deleted');
+Logs all posting actions for audit and analytics.
 
-CREATE TABLE media_assets (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  filename TEXT NOT NULL,
-  content_type TEXT NOT NULL,
-  file_size BIGINT NOT NULL,
-  cloudflare_key TEXT NOT NULL,
-  cloudflare_url TEXT NOT NULL,
-  metadata JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+```typescript
+interface PostHistory {
+  id: string                    // Partition key (userId_timestamp)
+  userId: string                // GSI: UserIdIndex
+  platform: 'instagram' | 'youtube' | 'linkedin' | 'twitter'
+  postId: string                // Platform-specific post ID
+  caption?: string              // Post caption/description
+  mediaUrl?: string             // Media file URL
+  status: 'published' | 'failed' | 'scheduled'
+  errorMessage?: string         // Error details if failed
+  scheduledFor: string          // ISO timestamp
+  createdAt: string             // ISO timestamp
+}
 
-CREATE TABLE post_media (
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-  media_asset_id UUID REFERENCES media_assets(id) ON DELETE CASCADE,
-  display_order INTEGER NOT NULL,
-  PRIMARY KEY (post_id, media_asset_id)
-);
+// Global Secondary Index
+UserIdIndex: userId (PK)
 ```
 
-#### Safety and Validation
-```sql
-CREATE TABLE safety_validations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  content_hash TEXT NOT NULL,
-  content_type validation_type_enum NOT NULL,
-  confidence_score DECIMAL(3,2) NOT NULL,
-  ai_model TEXT NOT NULL,
-  validation_result JSONB NOT NULL,
-  human_review_required BOOLEAN DEFAULT false,
-  human_reviewer_id UUID REFERENCES profiles(id),
-  human_review_result validation_result_enum,
-  human_review_notes TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  reviewed_at TIMESTAMPTZ
-);
+#### 5. users (Managed by Google OAuth)
 
-CREATE TYPE validation_type_enum AS ENUM ('post_content', 'comment_reply', 'media_content');
-CREATE TYPE validation_result_enum AS ENUM ('approved', 'rejected', 'needs_modification');
-```
+User profiles and authentication data.
 
-#### Collaboration and Campaigns
-```sql
-CREATE TABLE collaborations (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  initiator_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  collaborator_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  status collaboration_status_enum DEFAULT 'pending',
-  terms JSONB,
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  updated_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TYPE collaboration_status_enum AS ENUM ('pending', 'active', 'completed', 'cancelled');
-
-CREATE TABLE campaigns (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  agency_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  title TEXT NOT NULL,
-  description TEXT,
-  budget_total DECIMAL(10,2),
-  budget_per_creator DECIMAL(10,2),
-  target_audience JSONB,
-  requirements JSONB,
-  status campaign_status_enum DEFAULT 'draft',
-  starts_at TIMESTAMPTZ,
-  ends_at TIMESTAMPTZ,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TYPE campaign_status_enum AS ENUM ('draft', 'active', 'paused', 'completed', 'cancelled');
-```
-
-#### Analytics and Engagement
-```sql
-CREATE TABLE engagement_metrics (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  post_id UUID REFERENCES posts(id) ON DELETE CASCADE,
-  platform platform_enum NOT NULL,
-  likes_count INTEGER DEFAULT 0,
-  comments_count INTEGER DEFAULT 0,
-  shares_count INTEGER DEFAULT 0,
-  impressions_count INTEGER DEFAULT 0,
-  reach_count INTEGER DEFAULT 0,
-  engagement_rate DECIMAL(5,4),
-  collected_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TABLE growth_insights (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  insight_type insight_type_enum NOT NULL,
-  insight_data JSONB NOT NULL,
-  confidence_score DECIMAL(3,2),
-  generated_by TEXT NOT NULL,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE TYPE insight_type_enum AS ENUM ('optimal_posting_time', 'content_recommendation', 'hashtag_suggestion', 'engagement_pattern');
-```
-
-#### Audit and Compliance
-```sql
-CREATE TABLE audit_logs (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES profiles(id),
-  action_type TEXT NOT NULL,
-  resource_type TEXT NOT NULL,
-  resource_id UUID,
-  details JSONB NOT NULL,
-  ip_address INET,
-  user_agent TEXT,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-CREATE INDEX idx_audit_logs_user_created ON audit_logs(user_id, created_at);
-CREATE INDEX idx_audit_logs_action_created ON audit_logs(action_type, created_at);
+```typescript
+interface User {
+  id: string                    // Partition key (Google OAuth ID)
+  email: string                 // User email
+  name: string                  // Display name
+  profilePicture?: string       // Avatar URL
+  createdAt: string             // ISO timestamp
+  updatedAt: string             // ISO timestamp
+}
 ```
 
 ### Data Access Patterns
 
-#### Read Patterns
-- **User Dashboard**: Recent posts, scheduled content, engagement metrics
-- **Analytics Views**: Time-series engagement data, growth insights
-- **Collaboration Discovery**: Creator matching based on niche, location, engagement
-- **Campaign Management**: Multi-creator performance tracking
+**Common Queries:**
 
-#### Write Patterns
-- **Content Publishing**: Atomic post creation with media associations
-- **Engagement Updates**: Batch processing of platform metrics
-- **Audit Logging**: High-volume append-only operations
-- **Safety Validations**: Concurrent validation processing with human review queues
+1. **Get user's connected accounts:**
+   ```typescript
+   queryByIndex('connected_accounts', 'UserPlatformIndex', 
+     'userId = :userId', { ':userId': userId })
+   ```
 
-#### Caching Strategy
-- **Redis Caching**: User sessions, account aliases, recent posts
-- **CDN Caching**: Media assets via Cloudflare R2 with signed URLs
-- **Application Caching**: AI model responses, platform rate limit tracking
-- **Database Caching**: Supabase connection pooling and query optimization
+2. **Get user's conversations (sorted by recent):**
+   ```typescript
+   queryByIndex('chat_conversations', 'UserIdUpdatedAtIndex',
+     'userId = :userId', { ':userId': userId })
+   // Sort by updatedAt descending, limit 20
+   ```
+
+3. **Get conversation messages:**
+   ```typescript
+   queryByIndex('chat_messages', 'ConversationCreatedAtIndex',
+     'conversationId = :conversationId', { ':conversationId': conversationId })
+   // Sort by createdAt ascending, limit 50
+   ```
+
+4. **Get user's post history:**
+   ```typescript
+   queryByIndex('post_history', 'UserIdIndex',
+     'userId = :userId', { ':userId': userId })
+   // Limit 50, sorted by createdAt descending
+   ```
+
+### S3 Storage Structure
+
+Media files stored in AWS S3 bucket:
+
+```
+s3://social-media-content-{timestamp}/
+├── uploads/
+│   ├── {userId}/
+│   │   ├── {postId}/
+│   │   │   ├── original.jpg
+│   │   │   ├── thumbnail.jpg
+│   │   │   └── video.mp4
+│   │   └── ...
+│   └── ...
+└── temp/
+    └── {uploadId}/
+        └── ...
+```
+
+**S3 Configuration:**
+- CORS enabled for frontend uploads
+- Signed URLs with expiration for secure access
+- Bucket policies for user-specific access
+- Lifecycle policies for temp file cleanup
 
 ## Correctness Properties
 
