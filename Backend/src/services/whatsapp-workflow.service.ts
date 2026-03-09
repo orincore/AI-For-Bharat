@@ -89,11 +89,13 @@ export class WhatsAppWorkflowService {
   ): Promise<string> {
     const workflowState = await this.getWorkflowState(conversationId);
 
-    // Check if user wants to cancel
-    if (/\b(cancel|stop|abort|nevermind)\b/i.test(message)) {
-      if (workflowState.type) {
+    const normalizedMessage = message.trim();
+
+    // Check if user wants to cancel (STOP command)
+    if (/^stop$/i.test(normalizedMessage) || /\b(cancel|abort|nevermind)\b/i.test(normalizedMessage)) {
+      if (workflowState.step) {
         await this.clearWorkflowState(conversationId);
-        return '✅ Posting workflow cancelled. How else can I help you?';
+        return '🛑 Content upload flow stopped. You can start again anytime by sending a new request.';
       }
     }
 
@@ -126,7 +128,7 @@ export class WhatsAppWorkflowService {
         await this.updateWorkflowState(conversationId, newState);
         
         const mediaTypeText = postingIntent.platform === 'instagram' ? 'image or video' : 'video';
-        return `📸 Great! To post to ${postingIntent.platform === 'instagram' ? 'Instagram' : 'YouTube'}, please send me the ${mediaTypeText} you'd like to upload.`;
+        return `📸 Great! To post to ${postingIntent.platform === 'instagram' ? 'Instagram' : 'YouTube'}, please send me the ${mediaTypeText} you'd like to upload. (Type "STOP" anytime to cancel.)`;
       } else {
         // Media already attached, start workflow
         return await this.startPostingWorkflow(
@@ -152,7 +154,8 @@ export class WhatsAppWorkflowService {
       await this.updateWorkflowState(conversationId, newState);
 
       return `📎 Got your ${mediaType || 'media'}! Where should I post it?
-Reply with "Instagram" or "YouTube" to continue.`;
+Reply with "Instagram" or "YouTube" to continue.
+Type "STOP" anytime to cancel the upload flow.`;
     }
 
     // No workflow active, process as normal AI chat
