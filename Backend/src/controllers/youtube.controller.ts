@@ -17,7 +17,7 @@ class YouTubeController {
       }
 
       const clientId = process.env.YOUTUBE_CLIENT_ID;
-      const redirectUri = `${process.env.BACKEND_URL}/api/youtube/callback`;
+      const redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${process.env.BACKEND_URL}/api/youtube/callback`;
       
       if (!clientId) {
         console.error('YOUTUBE_CLIENT_ID missing from environment variables');
@@ -68,7 +68,7 @@ class YouTubeController {
 
       const clientId = process.env.YOUTUBE_CLIENT_ID;
       const clientSecret = process.env.YOUTUBE_CLIENT_SECRET;
-      const redirectUri = `${process.env.BACKEND_URL}/api/youtube/callback`;
+      const redirectUri = process.env.YOUTUBE_REDIRECT_URI || `${process.env.BACKEND_URL}/api/youtube/callback`;
 
       if (!clientId || !clientSecret) {
         console.error('YOUTUBE_CLIENT_ID or YOUTUBE_CLIENT_SECRET missing from environment variables');
