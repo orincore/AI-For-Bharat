@@ -298,10 +298,16 @@ export class ToolExecutorService {
     }
 
     const account = accounts[0];
+    
+    if (!account.accessToken) {
+      return JSON.stringify({ success: false, error: 'Instagram account access token missing. Please reconnect your Instagram account.' });
+    }
+    
     const result = await metaService.publishInstagramImage(
       account.platformAccountId,
       input.imageUrl,
-      input.caption
+      input.caption,
+      account.accessToken
     );
 
     await dynamoDBService.put(TABLES.POST_HISTORY, {

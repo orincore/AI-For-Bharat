@@ -28,15 +28,18 @@ export class MetaService {
   async publishInstagramImage(
     instagramAccountId: string,
     imageUrl: string,
-    caption: string
+    caption: string,
+    accessToken?: string
   ): Promise<any> {
+    const token = accessToken || this.accessToken;
+    
     // Step 1: Create media container
     const containerUrl = `${this.baseUrl}/${this.version}/${instagramAccountId}/media`;
     const containerResponse = await axios.post(containerUrl, null, {
       params: {
         image_url: imageUrl,
         caption: caption,
-        access_token: this.accessToken,
+        access_token: token,
       },
     });
 
@@ -47,7 +50,7 @@ export class MetaService {
     const publishResponse = await axios.post(publishUrl, null, {
       params: {
         creation_id: creationId,
-        access_token: this.accessToken,
+        access_token: token,
       },
     });
 
