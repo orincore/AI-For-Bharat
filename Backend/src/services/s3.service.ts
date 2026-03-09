@@ -3,7 +3,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, S3_BUCKET, S3_BUCKET_REGION } from '../config/aws';
 import { v4 as uuidv4 } from 'uuid';
 import { UploadResponse } from '../types';
-import axios from 'axios';
+import axios, { AxiosRequestConfig } from 'axios';
 
 export class S3Service {
   async uploadFile(
@@ -34,12 +34,19 @@ export class S3Service {
   async uploadFromUrl(
     mediaUrl: string,
     userId: string,
-    mediaType: 'image' | 'video'
+    mediaType: 'image' | 'video',
+    options?: { headers?: Record<string, string> }
   ): Promise<UploadResponse> {
-    const response = await axios.get(mediaUrl, {
+    const axiosConfig: AxiosRequestConfig = {
       responseType: 'arraybuffer',
       timeout: 30000,
-    });
+    };
+
+    if (options?.headers) {
+      axiosConfig.headers = options.headers;
+    }
+
+    const response = await axios.get(mediaUrl, axiosConfig);
 
     const buffer = Buffer.from(response.data);
     const contentType = response.headers['content-type'] || (mediaType === 'image' ? 'image/jpeg' : 'video/mp4');

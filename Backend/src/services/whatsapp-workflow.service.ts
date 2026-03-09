@@ -4,6 +4,7 @@ import { bedrockService } from './bedrock.service';
 import { toolExecutorService } from './tool-executor.service';
 import { s3Service } from './s3.service';
 import { v4 as uuidv4 } from 'uuid';
+import { PLATFORM_CONFIG } from '../config/platforms';
 
 const TABLES = {
   CHAT_CONVERSATIONS: process.env.DYNAMODB_TABLE_PREFIX + 'chat_conversations',
@@ -180,7 +181,31 @@ Type "STOP" anytime to cancel the upload flow.`;
     if (mediaUrl.includes('lookaside.fbsbx.com') || mediaUrl.includes('whatsapp')) {
       try {
         console.log(`📤 Uploading WhatsApp media to S3: ${mediaUrl}`);
-        const s3Upload = await s3Service.uploadFromUrl(mediaUrl, userId, mediaType);
+
+        let headers: Record<string, string> | undefined;
+
+        if (mediaUrl.includes('lookaside.fbsbx.com')) {
+          const metaToken = PLATFORM_CONFIG.META.ACCESS_TOKEN;
+          if (!metaToken) {
+            console.error('❌ Missing META access token for downloading lookaside media');
+            return '❌ Cannot download media right now. Please try again later.';
+          }
+
+          headers = {
+            Authorization: `Bearer ${metaToken}`,
+          };
+        } else if (mediaUrl.includes('phone91.com') || mediaUrl.includes('msg91')) {
+          const authKey = PLATFORM_CONFIG.MSG91.AUTH_KEY;
+          if (authKey) {
+            headers = {
+              authkey: authKey,
+            };
+          }
+        }
+
+        const s3Upload = await s3Service.uploadFromUrl(mediaUrl, userId, mediaType, {
+          headers,
+        });
         finalMediaUrl = s3Upload.url;
         console.log(`✅ Media uploaded to S3: ${finalMediaUrl}`);
       } catch (error: any) {
