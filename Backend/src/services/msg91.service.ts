@@ -229,13 +229,24 @@ export class MSG91Service {
   /**
    * Download media from MSG91 webhook (if media URL provided)
    */
-  async downloadMedia(mediaUrl: string): Promise<Buffer> {
+  async downloadMedia(mediaUrl: string, accessToken?: string): Promise<Buffer> {
     try {
+      const headers: Record<string, string> = {};
+      
+      // For lookaside.fbsbx.com URLs, use Bearer token authentication
+      if (mediaUrl.includes('lookaside.fbsbx.com')) {
+        if (!accessToken) {
+          throw new Error('Access token required for lookaside media download');
+        }
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      } else {
+        // For other MSG91/phone91 URLs, use authkey
+        headers['authkey'] = this.authKey;
+      }
+
       const response = await axios.get(mediaUrl, {
         responseType: 'arraybuffer',
-        headers: {
-          'authkey': this.authKey,
-        },
+        headers,
       });
 
       return Buffer.from(response.data);

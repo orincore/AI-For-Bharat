@@ -180,47 +180,31 @@ Type "STOP" anytime to cancel the upload flow.`;
     // Upload WhatsApp media to S3 for Instagram compatibility
     if (mediaUrl.includes('lookaside.fbsbx.com') || mediaUrl.includes('whatsapp')) {
       try {
-        console.log(`📤 Uploading WhatsApp media to S3: ${mediaUrl}`);
+        console.log(`📤 Downloading and uploading WhatsApp media to S3: ${mediaUrl}`);
 
-        let headers: Record<string, string> | undefined;
-
-        if (mediaUrl.includes('lookaside.fbsbx.com')) {
-          // Get user's Instagram access token from connected accounts
-          const instagramAccounts = await dynamoDBService.queryByIndex(
-            'social_media_connected_accounts',
-            'UserPlatformIndex',
-            '#userId = :userId AND #platform = :platform',
-            { ':userId': userId, ':platform': 'instagram' },
-            { '#userId': 'userId', '#platform': 'platform' }
-          );
-
-          if (!instagramAccounts || instagramAccounts.length === 0) {
-            console.error('❌ No Instagram account connected for user');
-            return '❌ Please connect your Instagram account first to post media.';
-          }
-
-          const userToken = instagramAccounts[0].accessToken;
-          if (!userToken) {
-            console.error('❌ Instagram account missing access token');
-            return '❌ Your Instagram connection needs to be refreshed. Please reconnect your account.';
-          }
-
-          headers = {
-            Authorization: `Bearer ${userToken}`,
-          };
-        } else if (mediaUrl.includes('phone91.com') || mediaUrl.includes('msg91')) {
-          const authKey = PLATFORM_CONFIG.MSG91.AUTH_KEY;
-          if (authKey) {
-            headers = {
-              authkey: authKey,
-            };
-          }
-        }
-
-        const s3Upload = await s3Service.uploadFromUrl(mediaUrl, userId, mediaType, {
-          headers,
+        // Download media using MSG91 service (handles authentication)
+        const whatsappToken = PLATFORM_CONFIG.MSG91.WHATSAPP_ACCESS_TOKEN;
+        const mediaBuffer = await msg91Service.downloadMedia(mediaUrl, whatsappToken);
+        
+        // Upload buffer directly to S3
+        const extension = mediaType === 'image' ? 'jpg' : 'mp4';
+        const contentType = mediaType === 'image' ? 'image/jpeg' : 'video/mp4';
+        const key = `whatsapp/${userId}/${Date.now()}.${extension}`;
+        
+        const { S3Client } = await import('@aws-sdk/client-s3');
+        const { PutObjectCommand } = await import('@aws-sdk/client-s3');
+        const { s3Client, S3_BUCKET, S3_BUCKET_REGION } = await import('../config/aws');
+        
+        const command = new PutObjectCommand({
+          Bucket: S3_BUCKET,
+          Key: key,
+          Body: mediaBuffer,
+          ContentType: contentType,
         });
-        finalMediaUrl = s3Upload.url;
+
+        await s3Client.send(command);
+        finalMediaUrl = `https://${S3_BUCKET}.s3.${S3_BUCKET_REGION}.amazonaws.com/${key}`;
+        
         console.log(`✅ Media uploaded to S3: ${finalMediaUrl}`);
       } catch (error: any) {
         console.error('❌ Failed to upload media to S3:', error.message);
