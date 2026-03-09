@@ -31,12 +31,22 @@ const tables: CreateTableCommandInput[] = [
     AttributeDefinitions: [
       { AttributeName: 'id', AttributeType: 'S' },
       { AttributeName: 'email', AttributeType: 'S' },
+      { AttributeName: 'phoneNumber', AttributeType: 'S' },
+      { AttributeName: 'whatsappVerified', AttributeType: 'S' },
     ],
     KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
     GlobalSecondaryIndexes: [
       {
         IndexName: 'EmailIndex',
         KeySchema: [{ AttributeName: 'email', KeyType: 'HASH' }],
+        Projection: { ProjectionType: 'ALL' },
+      },
+      {
+        IndexName: 'PhoneNumberVerificationIndex',
+        KeySchema: [
+          { AttributeName: 'phoneNumber', KeyType: 'HASH' },
+          { AttributeName: 'whatsappVerified', KeyType: 'RANGE' },
+        ],
         Projection: { ProjectionType: 'ALL' },
       },
     ],

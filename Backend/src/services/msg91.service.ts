@@ -28,11 +28,13 @@ export class MSG91Service {
   private authKey: string;
   private whatsappNumber: string;
   private baseUrl: string;
+  private webhookSecret?: string;
 
   constructor() {
     this.authKey = PLATFORM_CONFIG.MSG91.AUTH_KEY || '';
     this.whatsappNumber = PLATFORM_CONFIG.MSG91.WHATSAPP_NUMBER || '';
     this.baseUrl = PLATFORM_CONFIG.MSG91.BASE_URL;
+    this.webhookSecret = PLATFORM_CONFIG.MSG91.WEBHOOK_SECRET;
 
     if (!this.authKey || !this.whatsappNumber) {
       console.warn('⚠️ MSG91 credentials not configured');
@@ -138,6 +140,12 @@ export class MSG91Service {
       messageId: payload.message_uuid,
       isInbound: true,
     };
+  }
+
+  validateWebhookSecret(headers: Record<string, any>): boolean {
+    if (!this.webhookSecret) return true;
+    const secretHeader = headers['x-webhook-secret'] || headers['X-Webhook-Secret'];
+    return secretHeader === this.webhookSecret;
   }
 
   /**

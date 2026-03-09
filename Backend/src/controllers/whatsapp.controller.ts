@@ -18,6 +18,11 @@ export class WhatsAppController {
    */
   async handleInboundMessage(req: Request, res: Response) {
     try {
+      if (!msg91Service.validateWebhookSecret(req.headers)) {
+        console.warn('🚫 Invalid MSG91 webhook secret');
+        return res.status(401).json({ success: false, error: 'Invalid webhook secret' });
+      }
+
       const payload = req.body;
       console.log('📱 Received WhatsApp webhook:', JSON.stringify(payload, null, 2));
 
