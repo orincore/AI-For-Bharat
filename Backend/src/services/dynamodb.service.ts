@@ -66,14 +66,24 @@ export class DynamoDBService {
     expressionAttributeValues: any,
     expressionAttributeNames?: any
   ) {
-    const command = new UpdateCommand({
+    const commandParams: any = {
       TableName: tableName,
       Key: key,
       UpdateExpression: updateExpression,
-      ExpressionAttributeValues: expressionAttributeValues,
-      ExpressionAttributeNames: expressionAttributeNames,
       ReturnValues: 'ALL_NEW',
-    });
+    };
+
+    // Only include ExpressionAttributeValues if it's not empty
+    if (expressionAttributeValues && Object.keys(expressionAttributeValues).length > 0) {
+      commandParams.ExpressionAttributeValues = expressionAttributeValues;
+    }
+
+    // Only include ExpressionAttributeNames if provided
+    if (expressionAttributeNames) {
+      commandParams.ExpressionAttributeNames = expressionAttributeNames;
+    }
+
+    const command = new UpdateCommand(commandParams);
     const result = await docClient.send(command);
     return result.Attributes;
   }
