@@ -383,6 +383,10 @@ Type "STOP" anytime to cancel the upload flow.`;
       }
     }
 
+    if (state.step === 'posting') {
+      return '⏳ I\'m still publishing your Instagram post. This can take up to 3 minutes—thanks for your patience! I\'ll update you as soon as it\'s live.';
+    }
+
     return 'Something went wrong. Please try again.';
   }
 
