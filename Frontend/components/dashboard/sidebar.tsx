@@ -18,16 +18,7 @@ const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", id: "dashboard" },
   { icon: PenSquare, label: "Create Post", id: "create" },
   { icon: Bot, label: "Orin AI", id: "orin" },
-  { icon: Mic, label: "Voice Commands", id: "voice" },
-  { icon: AtSign, label: "Aliases", id: "aliases" },
-  { icon: MessageCircleIcon, label: "Automation", id: "automation" },
-  { icon: Briefcase, label: "Marketplace", id: "marketplace" },
-
   { icon: Folder, label: "Content Library", id: "library" },
-  { icon: Calendar, label: "Schedule", id: "schedule" },
-  { icon: Users, label: "Creators", id: "creators" },
-
-  { icon: BarChart3, label: "Analytics", id: "analytics" },
   { icon: MessageSquare, label: "WhatsApp", id: "whatsapp" },
   { icon: Settings, label: "Settings", id: "settings" },
 ]
@@ -154,15 +145,7 @@ export function Sidebar({
               exit={{ opacity: 0, height: 0 }}
               className="mb-2 overflow-hidden"
             >
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
-                <p className="text-xs font-semibold text-primary">Pro Plan</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">
-                  Unlimited AI captions and scheduling
-                </p>
-                <div className="mt-2 h-1 overflow-hidden rounded-full bg-primary/10">
-                  <div className="h-full w-3/4 rounded-full bg-gradient-to-r from-primary to-neon-cyan" />
-                </div>
-              </div>
+              
             </motion.div>
           )}
         </AnimatePresence>

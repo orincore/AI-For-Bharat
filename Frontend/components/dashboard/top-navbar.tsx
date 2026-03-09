@@ -64,14 +64,8 @@ export function TopNavbar({ sidebarCollapsed }: TopNavbarProps) {
       {/* Right: Actions */}
       <div className="flex items-center gap-2">
         {/* AI status badge */}
-        <div className="mr-1 flex items-center gap-1.5 rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1">
-          <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-          </span>
-          <Sparkles className="h-3 w-3 text-primary" />
-          <span className="text-[11px] font-medium text-primary">Orin Active</span>
-        </div>
+        
+        
 
         {/* Theme toggle */}
         <button
