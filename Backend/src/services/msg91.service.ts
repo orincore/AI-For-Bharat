@@ -55,7 +55,7 @@ export class MSG91Service {
         integrated_number: this.whatsappNumber,
         content_type: 'text',
         recipient_number: normalizedTo,
-        message,
+        text: message,
       };
 
       console.log(`📤 Sending WhatsApp message to ${normalizedTo}`);
