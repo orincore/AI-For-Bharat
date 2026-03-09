@@ -289,6 +289,38 @@ ${context}
     return platform ? { platform, type, count } : null;
   }
 
+  private detectProfileStatsQuery(question: string): { platform?: 'instagram' | 'youtube'; metric: 'followers' | 'subscribers' | 'stats' } | null {
+    const lowerQ = question.toLowerCase();
+    const followerKeywords = ['follower', 'followers', 'follow count', 'followers count', 'following count'];
+    const subscriberKeywords = ['subscriber', 'subscribers', 'subs'];
+    const genericKeywords = ['profile stats', 'profile statistics', 'account stats', 'account statistics'];
+
+    const mentionsFollowers = followerKeywords.some((kw) => lowerQ.includes(kw));
+    const mentionsSubscribers = subscriberKeywords.some((kw) => lowerQ.includes(kw));
+    const mentionsGeneric = genericKeywords.some((kw) => lowerQ.includes(kw));
+
+    if (!mentionsFollowers && !mentionsSubscribers && !mentionsGeneric) {
+      return null;
+    }
+
+    let platform: 'instagram' | 'youtube' | undefined;
+    if (/(instagram|insta|ig)/i.test(question)) platform = 'instagram';
+    if (/(youtube|yt|channel)/i.test(question)) platform = platform || 'youtube';
+
+    if (!platform) {
+      if (mentionsSubscribers) platform = 'youtube';
+      else if (mentionsFollowers) platform = 'instagram';
+    }
+
+    const metric = mentionsSubscribers
+      ? 'subscribers'
+      : mentionsFollowers
+        ? 'followers'
+        : 'stats';
+
+    return { platform, metric };
+  }
+
   async answerQuestionWithTools(
     question: string,
     context: any,
@@ -321,6 +353,36 @@ ${context}
       }
     }
     
+    const profileStatsQuery = this.detectProfileStatsQuery(question);
+    if (profileStatsQuery) {
+      const platform = profileStatsQuery.platform || (profileStatsQuery.metric === 'subscribers' ? 'youtube' : 'instagram');
+      const toolName = platform === 'instagram' ? 'get_instagram_profile_stats' : 'get_youtube_channel_stats';
+
+      try {
+        const result = await toolExecutor(toolName, {});
+        const parsed = JSON.parse(result);
+
+        if (!parsed.success || !parsed.profile) {
+          return parsed.error || `I couldn't fetch your ${platform} profile stats right now.`;
+        }
+
+        if (platform === 'instagram') {
+          return `📸 Instagram profile stats for @${parsed.profile.username}:
+• Followers: ${parsed.profile.followers?.toLocaleString?.() ?? parsed.profile.followers}
+• Following: ${parsed.profile.follows?.toLocaleString?.() ?? parsed.profile.follows}
+• Posts: ${parsed.profile.mediaCount?.toLocaleString?.() ?? parsed.profile.mediaCount}`;
+        }
+
+        return `▶️ YouTube channel stats for ${parsed.profile.title}:
+• Subscribers: ${parsed.profile.subscribers?.toLocaleString?.() ?? parsed.profile.subscribers}${parsed.profile.hiddenSubscriberCount ? ' (hidden from public view)' : ''}
+• Total views: ${parsed.profile.views?.toLocaleString?.() ?? parsed.profile.views}
+• Videos: ${parsed.profile.videos?.toLocaleString?.() ?? parsed.profile.videos}`;
+      } catch (error: any) {
+        console.error('❌ Profile stats tool error:', error);
+        return 'I ran into an issue fetching your profile stats. Please try again shortly.';
+      }
+    }
+
     const analyticsQuery = this.detectAnalyticsQuery(question);
     if (analyticsQuery) {
       try {
